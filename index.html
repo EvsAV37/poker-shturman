@@ -122,6 +122,10 @@ details[open] summary::after{content:"–"}
 .eyebtn{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:6px 12px;border-radius:5px;border:1.5px solid var(--accent);background:transparent;color:var(--accent);font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap}
 .eyebtn.main{background:var(--accent);color:var(--bg)}
 .eyebtn[hidden]{display:none}
+.cambox{display:grid;gap:7px;min-width:0}
+#camVideo{position:absolute;width:2px;height:2px;opacity:.01;pointer-events:none}
+#camCv{display:block;max-width:100%;max-height:46vh;width:auto;height:auto;border-radius:4px;background:var(--line);touch-action:manipulation}
+#camCv.marking{cursor:crosshair;outline:2px solid var(--accent)}
 .sr{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
 .sr:focus-visible + .eyebtn{outline:2px solid var(--accent);outline-offset:2px}
 #eyeStatus{margin:0;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
@@ -171,10 +175,20 @@ footer a{color:var(--accent)}
   <section class="eye wide" aria-label="Зрение">
     <div class="eyebar">
       <button type="button" class="eyebtn main" id="btnEye">Смотреть экран</button>
+      <button type="button" class="eyebtn" id="btnCam">Смотреть камерой</button>
       <input class="sr" id="fShot" type="file" accept="image/*"><label class="eyebtn" for="fShot">Проверить скриншот</label>
       <button type="button" class="eyebtn" id="btnTop" hidden>Поверх игры</button>
     </div>
     <p id="eyeStatus">Штурман сам найдёт карты, суммы и дилера на первом снимке. Разметка не нужна.</p>
+    <div class="cambox" id="camBox" hidden>
+      <video id="camVideo" playsinline muted autoplay></video>
+      <canvas id="camCv" width="640" height="360"></canvas>
+      <div class="eyebar">
+        <button type="button" class="eyebtn" id="btnCorners">Отметить углы</button>
+        <button type="button" class="eyebtn" id="btnAuto">Искать экран сам</button>
+      </div>
+      <p class="note" id="camHint">Поставьте телефон на подставку, снимайте экран прямо и без бликов, чтобы он занял почти весь кадр.</p>
+    </div>
     <details id="dEye">
       <summary>Что видит штурман</summary>
       <canvas id="eyeCv" width="720" height="405"></canvas>
@@ -251,6 +265,7 @@ footer a{color:var(--accent)}
     <p><b>Повышения.</b> Рейз: соперник открыл, вы ещё не вкладывались. Ререйз: вы открыли, вас подняли. 4-бет: вы сделали ререйз, а открывший поднял снова или пошёл олл-ин. 5-бет: вы сделали 4-бет, а соперник пошёл олл-ин.</p>
     <p><b>Приближённо.</b> Лимпы, колл перед вами, чужой ререйз и необычные ставки в солверное дерево не входят. Тогда совет идёт из упрощённых таблиц, и приложение помечает его словом «Приближённо».</p>
     <p><b>Зрение.</b> Захват экрана работает в файле «Покерный штурман.html», открытом в Chrome на ПК. Держите его в отдельном окне: в фоновой вкладке браузер может замедлить снимки. На Android и на странице по ссылке можно разобрать загруженный или вставленный скриншот. Распознавание работает на устройстве, снимки никуда не отправляются.</p>
+    <p><b>Камера.</b> Кнопка «Смотреть камерой» снимает экран с другого устройства: например, iPhone на подставке смотрит на монитор или на Android-телефон с игрой. Штурман сам ищет экран, а если обрезал стол, нажмите «Отметить углы» и коснитесь четырёх углов экрана на картинке. Камера работает на сайте и в файле на ПК, а на странице по ссылке Claude запрещена. Кадры обрабатываются на устройстве и никуда не отправляются.</p>
     <p><b>Новая раздача.</b> Очищает карты, банк и колл и сдвигает позицию на одно место, как при движении баттона. Стек, ББ и число мест сохраняются.</p>
     <p><b>Ограничения.</b> Таблицы приближённые: игра после флопа в них оценена, а не решена полностью. Они недооценивают одномастные связки вроде T9s и 76s, особенно с ранних позиций. Для 7–9 мест используются таблицы на 6 мест. Приложение не видит манеру конкретного соперника и не считает побочные банки. Оно рассчитано на игру на фишки и тренажёры: покер-румы запрещают подсказки в игре на деньги.</p>
   </details>
@@ -1244,8 +1259,8 @@ var Vision = (function(){
     tokens = tokens.filter(function(t, i){ return !tokens.some(function(o, j){ return j !== i && Math.abs(o.cx - t.cx) < o.h && Math.abs(o.cy - t.cy) < o.h * .6 && o.q > t.q; }); });
     var heroMid = grp.hero.length ? { x: (grp.hero[0].cx + grp.hero[1].cx) / 2, y: (grp.hero[0].cy + grp.hero[1].cy) / 2 } : null;
     var cx, cy;
-    if (grp.boardRow) { cx = W / 2; cy = grp.boardRow.cy; }
-    else if (heroMid) { cx = W / 2; cy = Math.max(H * .3, heroMid.y - H * .3); }
+    if (grp.boardRow) { cx = (grp.boardRow.list.length === 5 ? grp.boardRow.cx : (heroMid ? heroMid.x : W / 2)); cy = grp.boardRow.cy; }
+    else if (heroMid) { cx = heroMid.x; cy = Math.max(H * .3, heroMid.y - H * .3); }
     else { cx = W / 2; cy = H * .42; }
     res.center = { x: cx, y: cy };
     // Банк: подпись важнее, иначе самая большая сумма рядом с центром. Подписанные суммы вне центра это имена игроков.
@@ -1337,6 +1352,147 @@ var Vision = (function(){
     var r = analyze(c.getImageData(0, 0, cw, ch)); r.scale = k; return r;
   }
   return { analyze: analyze, fromSource: fromSource, templates: templates };
+})();
+
+// Съёмка экрана камерой: поиск экрана, выравнивание и очистка кадра
+var CamVision = (function(){
+  function homography(q){ // единичный квадрат → четырёхугольник q: [лв, пв, пн, лн]
+    var x0 = q[0].x, y0 = q[0].y, x1 = q[1].x, y1 = q[1].y, x2 = q[2].x, y2 = q[2].y, x3 = q[3].x, y3 = q[3].y;
+    var sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3, dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2;
+    var den = dx1 * dy2 - dx2 * dy1, g = (sx * dy2 - dx2 * sy) / den, h = (dx1 * sy - sx * dy1) / den;
+    return { a: x1 - x0 + g * x1, b: x3 - x0 + h * x3, c: x0, d: y1 - y0 + g * y1, e: y3 - y0 + h * y3, f: y0, g: g, h: h };
+  }
+  function sortCorners(pts){
+    var by = function(fn, max){ return pts.reduce(function(b, p){ return b === null || (max ? fn(p) > fn(b) : fn(p) < fn(b)) ? p : b; }, null); };
+    return [by(function(p){ return p.x + p.y; }, false), by(function(p){ return p.x - p.y; }, true), by(function(p){ return p.x + p.y; }, true), by(function(p){ return p.x - p.y; }, false)];
+  }
+  function quadSize(q){
+    function d(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+    var w = (d(q[0], q[1]) + d(q[3], q[2])) / 2, h = (d(q[0], q[3]) + d(q[1], q[2])) / 2, k = 1500 / Math.max(w, h);
+    return { w: Math.round(w * k), h: Math.round(h * k) };
+  }
+  // Экран светится: ищем самую большую светлую область кадра
+  function findScreen(img){
+    var S = Math.max(1, Math.round(img.width / 240)), w = img.width / S | 0, h = img.height / S | 0, g = new Float32Array(w * h), sum = 0, i;
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      var o = (y * S * img.width + x * S) * 4, v = img.data[o] * .3 + img.data[o + 1] * .59 + img.data[o + 2] * .11;
+      g[y * w + x] = v; sum += v;
+    }
+    var hist = new Float64Array(256), n = w * h, total = 0;
+    for (i = 0; i < n; i++) { var b = g[i] | 0; hist[b]++; total += b; }
+    var wB = 0, sumB = 0, best = 0, t = 30; // порог Оцу
+    for (i = 0; i < 256; i++) {
+      wB += hist[i]; if (!wB || wB === n) continue;
+      sumB += i * hist[i];
+      var mB = sumB / wB, mF = (total - sumB) / (n - wB), between = wB * (n - wB) * (mB - mF) * (mB - mF);
+      if (between > best) { best = between; t = i; }
+    }
+    t = Math.min(t, Math.max(16, sum / n * .8));
+    var m = new Uint8Array(n), closed = new Uint8Array(n), R = 3, xx, yy;
+    for (i = 0; i < n; i++) m[i] = g[i] > t ? 1 : 0;
+    for (yy = 0; yy < h; yy++) for (xx = 0; xx < w; xx++) { // закрываем тёмные детали внутри экрана
+      var on = 0;
+      for (var dy = -R; dy <= R && !on; dy++) for (var dx = -R; dx <= R; dx++) { var ax = xx + dx, ay = yy + dy; if (ax >= 0 && ay >= 0 && ax < w && ay < h && m[ay * w + ax]) { on = 1; break; } }
+      closed[yy * w + xx] = on;
+    }
+    var seen = new Uint8Array(n), stack = new Int32Array(n), top = null;
+    for (i = 0; i < n; i++) {
+      if (!closed[i] || seen[i]) continue;
+      var sp = 0, list = []; stack[sp++] = i; seen[i] = 1;
+      while (sp) {
+        var q = stack[--sp], qy = q / w | 0, qx = q - qy * w; list.push(q);
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function(s){
+          var nx = qx + s[0], ny = qy + s[1]; if (nx < 0 || ny < 0 || nx >= w || ny >= h) return;
+          var r = ny * w + nx; if (closed[r] && !seen[r]) { seen[r] = 1; stack[sp++] = r; }
+        });
+      }
+      if (!top || list.length > top.length) top = list;
+    }
+    if (!top || top.length < n * .1) return null;
+    var pts = top.map(function(p){ var y2 = p / w | 0; return { x: p - y2 * w, y: y2 }; });
+    var c = sortCorners(pts).map(function(p){ return { x: p.x * S, y: p.y * S }; });
+    // морфология раздувает край на R клеток: возвращаем его к центру
+    var mx = (c[0].x + c[1].x + c[2].x + c[3].x) / 4, my = (c[0].y + c[1].y + c[2].y + c[3].y) / 4;
+    c = c.map(function(p){ var d = Math.hypot(p.x - mx, p.y - my) || 1, cut = (R - 1) * S * 1.3; return { x: p.x - (p.x - mx) / d * cut, y: p.y - (p.y - my) / d * cut }; });
+    var size = quadSize(c), area = 0;
+    for (i = 0; i < 4; i++) { var a = c[i], e = c[(i + 1) % 4]; area += a.x * e.y - e.x * a.y; }
+    area = Math.abs(area) / 2;
+    if (area < img.width * img.height * .08 || size.w / size.h > 3.2 || size.h / size.w > 3.2) return null;
+    return c;
+  }
+  function warp(img, q, W, H){
+    var T = homography(q), out = new ImageData(W, H), d = out.data, s = img.data, iw = img.width, ih = img.height, p = 0;
+    for (var y = 0; y < H; y++) {
+      var v = (y + .5) / H;
+      for (var x = 0; x < W; x++, p += 4) {
+        var u = (x + .5) / W, z = T.g * u + T.h * v + 1, fx = (T.a * u + T.b * v + T.c) / z, fy = (T.d * u + T.e * v + T.f) / z;
+        var ix = fx | 0, iy = fy | 0;
+        if (ix < 0 || iy < 0 || ix >= iw - 1 || iy >= ih - 1) { d[p + 3] = 255; continue; }
+        var ax = fx - ix, ay = fy - iy, o = (iy * iw + ix) * 4, o2 = o + iw * 4;
+        for (var c = 0; c < 3; c++) {
+          var t = s[o + c] * (1 - ax) + s[o + 4 + c] * ax, b = s[o2 + c] * (1 - ax) + s[o2 + 4 + c] * ax;
+          d[p + c] = t * (1 - ay) + b * ay;
+        }
+        d[p + 3] = 255;
+      }
+    }
+    return out;
+  }
+  // Растяжение яркости и лёгкая резкость: камера делает белое серым
+  function clean(img){
+    var d = img.data, n = d.length / 4, W = img.width, H = img.height, hist = new Uint32Array(256), i;
+    for (i = 0; i < n; i++) hist[(d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8]++;
+    var lo = 0, hi = 255, acc = 0;
+    for (i = 0; i < 256; i++) { acc += hist[i]; if (acc >= n * .01) { lo = i; break; } }
+    acc = 0;
+    for (i = 255; i >= 0; i--) { acc += hist[i]; if (acc >= n * .004) { hi = i; break; } }
+    var k = 250 / Math.max(40, hi - lo), lut = new Uint8ClampedArray(256);
+    for (i = 0; i < 256; i++) lut[i] = (i - lo) * k;
+    for (i = 0; i < d.length; i += 4) { d[i] = lut[d[i]]; d[i + 1] = lut[d[i + 1]]; d[i + 2] = lut[d[i + 2]]; }
+    var src = new Uint8ClampedArray(d);
+    for (var y = 1; y < H - 1; y++) for (var x = 1; x < W - 1; x++) {
+      var o = (y * W + x) * 4;
+      for (var c = 0; c < 3; c++) {
+        var v = src[o + c];
+        d[o + c] = v + .55 * (4 * v - src[o - 4 + c] - src[o + 4 + c] - src[o - W * 4 + c] - src[o + W * 4 + c]) / 2;
+      }
+    }
+    return img;
+  }
+  function average(frames){
+    var first = frames[0], n = first.data.length, sum = new Uint32Array(n), out = new ImageData(first.width, first.height), i;
+    frames.forEach(function(f){ for (i = 0; i < n; i++) sum[i] += f.data[i]; });
+    for (i = 0; i < n; i++) out.data[i] = sum[i] / frames.length;
+    return out;
+  }
+  function rotated(canvas, deg){
+    if (!deg) return canvas;
+    var c = document.createElement('canvas'), odd = deg % 180 !== 0;
+    c.width = odd ? canvas.height : canvas.width; c.height = odd ? canvas.width : canvas.height;
+    var x = c.getContext('2d'); x.translate(c.width / 2, c.height / 2); x.rotate(deg * Math.PI / 180); x.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+    return c;
+  }
+  function toCanvas(img){ var c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').putImageData(img, 0, 0); return c; }
+  function quality(r){ return r.hero.length * 3 + r.board.length + Math.min(r.tokens.length, 10) * .5 + (r.heroSeat !== undefined ? 2 : 0); }
+  // Полный путь: средний кадр → выровненный стол → распознавание.
+  // view: null подбирает лучший вид; иначе { whole, rot } закрепляет найденный.
+  function read(avg, q, view, manual){
+    function once(whole, deg){
+      var base = whole ? clean(new ImageData(new Uint8ClampedArray(avg.data), avg.width, avg.height)) : null;
+      if (!whole) { var size = quadSize(q); base = clean(warp(avg, q, size.w, size.h)); }
+      var cv = rotated(toCanvas(base), deg), r = Vision.fromSource(cv, cv.width, cv.height);
+      return { canvas: cv, r: r, view: { whole: whole, rot: deg }, score: quality(r) };
+    }
+    if (view) return once(view.whole, view.rot);
+    var best = null;
+    function consider(w, d){ var x = once(w, d); if (!best || x.score > best.score) best = x; }
+    if (q) consider(false, 0);
+    if (!manual) consider(true, 0);
+    // поворот проверяем, только если стол не прочитался прямо: иначе повёрнутые цифры дают ложные карты
+    if (q && best.r.hero.length < 2) [90, 270, 180].forEach(function(d){ if (best.r.hero.length < 2) consider(false, d); });
+    return best;
+  }
+  return { findScreen: findScreen, warp: warp, clean: clean, average: average, read: read, sortCorners: sortCorners, homography: homography };
 })();
 /*VISION-END*/
 
@@ -1597,6 +1753,7 @@ var Vision = (function(){
   }
   $('btnEye').addEventListener('click', function(){
     if (stream) { stopEye(); return; }
+    if (camStream) stopCam();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { eyeSay('Здесь браузер не даёт смотреть на экран. На Android загрузите скриншот, а для постоянного зрения нужен APK.', true); return; }
     navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5 }, audio: false }).then(function(s){
       stream = s; video = document.createElement('video'); video.muted = true; video.playsInline = true; video.srcObject = s;
@@ -1609,6 +1766,98 @@ var Vision = (function(){
       eyeSay('Захват не запустился. Если вы не отменяли его сами, откройте файл «Покерный штурман.html» в Chrome: страница по ссылке захват запрещает.', true);
     });
   });
+  // ---- Камера: отдельный режим, остальные функции не меняет ----
+  var camStream = null, camTimer = 0, camQuad = null, camManual = false, camView = null, camMiss = 0, marking = null, votes = [], wake = null;
+  var camVideo = $('camVideo'), camCv = $('camCv');
+  function modeOf(key){
+    var count = {}, top = null, n = 0;
+    votes.forEach(function(v){ var k = JSON.stringify(v[key]); count[k] = (count[k] || 0) + 1; if (count[k] > n) { n = count[k]; top = v[key]; } });
+    return n >= 2 ? top : undefined;
+  }
+  function voted(r){
+    votes.push({ hero: r.hero, board: r.board, pot: r.potValue, call: r.call, stack: r.stack });
+    if (votes.length > 4) votes.shift();
+    var hero = modeOf('hero');
+    if (hero === undefined) return null;
+    var m = Object.assign({}, r), v;
+    m.hero = hero;
+    if ((v = modeOf('board')) !== undefined) m.board = v;
+    if ((v = modeOf('pot')) !== undefined) m.potValue = v;
+    if ((v = modeOf('call')) !== undefined) m.call = v;
+    if ((v = modeOf('stack')) !== undefined) m.stack = v;
+    return m;
+  }
+  function grabFrames(n, done){
+    var w = camVideo.videoWidth, h = camVideo.videoHeight, k = Math.min(1, 1920 / Math.max(w, h)), W = Math.round(w * k), H = Math.round(h * k);
+    var c = document.createElement('canvas'); c.width = W; c.height = H;
+    var x = c.getContext('2d', { willReadFrequently: true }), frames = [];
+    (function next(){
+      x.drawImage(camVideo, 0, 0, W, H); frames.push(x.getImageData(0, 0, W, H));
+      if (frames.length >= n) done(CamVision.average(frames)); else setTimeout(next, 110);
+    })();
+  }
+  function drawCam(avg){
+    var k = Math.min(640 / avg.width, 1), x = camCv.getContext('2d');
+    camCv.width = Math.round(avg.width * k); camCv.height = Math.round(avg.height * k);
+    var c = document.createElement('canvas'); c.width = avg.width; c.height = avg.height; c.getContext('2d').putImageData(avg, 0, 0);
+    x.drawImage(c, 0, 0, camCv.width, camCv.height);
+    camCv.dataset.scale = k;
+    function line(q, color){ x.strokeStyle = color; x.lineWidth = 2; x.beginPath(); q.forEach(function(p, i){ x[i ? 'lineTo' : 'moveTo'](p.x * k, p.y * k); }); x.closePath(); x.stroke(); }
+    if (camQuad) line(camQuad, '#2ee59d');
+    (marking || []).forEach(function(p){ x.fillStyle = '#ffd23f'; x.beginPath(); x.arc(p.x * k, p.y * k, 5, 0, 7); x.fill(); });
+  }
+  function camTick(){
+    if (!camStream) return;
+    if (!camVideo.videoWidth) { camTimer = setTimeout(camTick, 300); return; }
+    grabFrames(3, function(avg){
+      if (!camStream) return;
+      try {
+        drawCam(avg);
+        if (marking) { camTimer = setTimeout(camTick, 500); return; }
+        if (!camManual && !camView) camQuad = CamVision.findScreen(avg);
+        var res = CamVision.read(avg, camQuad, camView, camManual), r = res.r;
+        drawEye(res.canvas, res.canvas.width, res.canvas.height, r);
+        if (r.hero.length === 2) { camView = res.view; camMiss = 0; }
+        else if (++camMiss >= 6) { camView = null; camMiss = 0; }
+        var m = voted(r);
+        if (m) applyVision(m, false); else eyeSay(describe(r));
+      } catch (e) { eyeSay('Не удалось разобрать кадр: ' + e.message, true); }
+      camTimer = setTimeout(camTick, 500);
+    });
+  }
+  function stopCam(){
+    if (camStream) camStream.getTracks().forEach(function(t){ t.stop(); });
+    camStream = null; clearTimeout(camTimer); camVideo.srcObject = null; $('camBox').hidden = true; marking = null; camCv.className = '';
+    $('btnCam').textContent = 'Смотреть камерой';
+    try { if (wake) wake.release(); } catch (e) {} wake = null;
+    eyeSay('Камера остановлена.');
+  }
+  $('btnCam').addEventListener('click', function(){
+    if (camStream) { stopCam(); return; }
+    if (stream) stopEye();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { eyeSay('Камера здесь недоступна. Откройте сайт по адресу с https:// в Safari или Chrome.', true); return; }
+    navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } }).then(function(s){
+      camStream = s; camVideo.srcObject = s; votes = []; camView = null; camMiss = 0; lastHero = ''; lastSig = '';
+      $('camBox').hidden = false; $('btnCam').textContent = 'Остановить камеру';
+      eyeSay('Камера включена. Ищу экран.');
+      if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function(w){ wake = w; }).catch(function(){});
+      return camVideo.play();
+    }).then(function(){ camTick(); }).catch(function(e){
+      if (camStream) stopCam();
+      eyeSay('Камера не включилась. Разрешите доступ к камере в браузере. На странице по ссылке Claude камера запрещена: откройте сайт на GitHub.', true);
+    });
+  });
+  $('btnCorners').addEventListener('click', function(){ marking = []; camCv.className = 'marking'; eyeSay('Коснитесь на картинке четырёх углов экрана с игрой.'); });
+  $('btnAuto').addEventListener('click', function(){ marking = null; camCv.className = ''; camManual = false; camQuad = null; camView = null; votes = []; eyeSay('Ищу экран сам.'); });
+  camCv.addEventListener('click', function(e){
+    if (!marking) return;
+    var b = camCv.getBoundingClientRect(), k = +camCv.dataset.scale || 1;
+    marking.push({ x: (e.clientX - b.left) * camCv.width / b.width / k, y: (e.clientY - b.top) * camCv.height / b.height / k });
+    if (marking.length < 4) { eyeSay('Отмечено углов: ' + marking.length + ' из 4.'); return; }
+    camQuad = CamVision.sortCorners(marking); marking = null; camCv.className = ''; camManual = true; camView = null; votes = [];
+    eyeSay('Углы отмечены. Смотрю на этот участок.');
+  });
+
   function readImage(file){
     if (!file) return;
     createImageBitmap(file).then(function(b){ st.example = false; lastHero = ''; lastSig = ''; look(b, b.width, b.height, false); }).catch(function(){ eyeSay('Не удалось открыть этот файл как картинку.', true); });
