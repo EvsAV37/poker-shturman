@@ -1,9 +1,17 @@
 // Автономная работа: страница сохраняется при первом открытии и обновляется при наличии сети
-var CACHE = 'shturman-v5', FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+var CACHE = 'shturman-v6', FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', function(e){ e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(FILES); }).then(function(){ return self.skipWaiting(); })); });
 self.addEventListener('activate', function(e){ e.waitUntil(caches.keys().then(function(k){ return Promise.all(k.filter(function(n){ return n !== CACHE; }).map(function(n){ return caches.delete(n); })); }).then(function(){ return self.clients.claim(); })); });
 self.addEventListener('fetch', function(e){
   if (e.request.method !== 'GET') return;
+  // Страницу берём из сети, чтобы новая версия появлялась сразу, а без сети открываем сохранённую
+  if (e.request.mode === 'navigate') {
+    e.respondWith(fetch(e.request, { cache: 'no-store' }).then(function(r){
+      var copy = r.clone(); caches.open(CACHE).then(function(c){ c.put('./index.html', copy); });
+      return r;
+    }).catch(function(){ return caches.match('./index.html'); }));
+    return;
+  }
   e.respondWith(caches.open(CACHE).then(function(c){
     return c.match(e.request, { ignoreSearch: true }).then(function(hit){
       var net = fetch(e.request).then(function(r){ if (r && (r.ok || r.type === 'opaque')) c.put(e.request, r.clone()); return r; });

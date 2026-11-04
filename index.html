@@ -124,7 +124,7 @@ details[open] summary::after{content:"–"}
 .eyebtn[hidden]{display:none}
 .cambox{display:grid;gap:7px;min-width:0}
 .camview{position:relative;overflow:hidden;width:100%;max-width:100%;border-radius:4px;background:var(--line)}
-#camVideo{position:absolute;left:50%;top:50%;max-width:none;transform:translate(-50%,-50%);object-fit:fill}
+#camVideo{position:absolute;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none}
 #camCv{position:absolute;inset:0;width:100%;height:100%;touch-action:manipulation}
 #camCv.marking{cursor:crosshair;outline:2px solid var(--accent);outline-offset:-2px}
 .sr{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
@@ -191,6 +191,7 @@ footer a{color:var(--accent)}
         <button type="button" class="eyebtn" id="btnCorners">Отметить углы</button>
         <button type="button" class="eyebtn" id="btnAuto">Искать экран сам</button>
       </div>
+      <p class="note" id="camInfo"></p>
       <p class="note" id="camHint">Поставьте телефон на подставку, снимайте экран прямо и без бликов, чтобы он занял почти весь кадр.</p>
     </div>
     <details id="dEye">
@@ -1838,24 +1839,32 @@ var CamVision = (function(){
     if ((v = modeOf('stack')) !== undefined) m.stack = v;
     return m;
   }
-  // Живое видео показывает сам браузер, поверх только рамка: так картинка не дёргается
+  // Предпросмотр рисуется тем же способом, что и кадры для распознавания: что видно, то и читается
+  var camLayoutKey = '', camLoop = 0;
   function layoutCam(){
     var vw = camVideo.videoWidth, vh = camVideo.videoHeight; if (!vw) return;
     var odd = camRot % 180 !== 0, a = odd ? vh / vw : vw / vh, box = $('camView');
     var limit = Math.round(window.innerHeight * .34), W = Math.min(box.parentNode.clientWidth, Math.round(limit * a)), H = Math.round(W / a);
     box.style.width = W + 'px'; box.style.height = H + 'px';
-    camVideo.style.width = (odd ? H : W) + 'px'; camVideo.style.height = (odd ? W : H) + 'px';
-    camVideo.style.transform = 'translate(-50%,-50%) rotate(' + camRot + 'deg)';
-    camCv.width = W; camCv.height = H;
-    drawOverlay();
+    var d = Math.min(2, window.devicePixelRatio || 1); camCv.width = W * d; camCv.height = H * d;
+    frameSize();
+    $('camInfo').textContent = 'Кадр ' + vw + '×' + vh + ', поворот ' + camRot + '°, экран ' + window.innerWidth + '×' + window.innerHeight + ', версия 6';
+    camLayoutKey = vw + 'x' + vh + 'r' + camRot + 'w' + window.innerWidth;
   }
   function drawOverlay(){
-    var x = camCv.getContext('2d'); x.clearRect(0, 0, camCv.width, camCv.height);
+    if (!camStream || !camVideo.videoWidth) return;
+    var vw = camVideo.videoWidth, vh = camVideo.videoHeight;
+    if (camLayoutKey !== vw + 'x' + vh + 'r' + camRot + 'w' + window.innerWidth) layoutCam();
+    var x = camCv.getContext('2d'), W = camCv.width, H = camCv.height, odd = camRot % 180 !== 0, dw = odd ? H : W, dh = odd ? W : H;
+    x.save(); x.translate(W / 2, H / 2); x.rotate(camRot * Math.PI / 180);
+    try { x.drawImage(camVideo, -dw / 2, -dh / 2, dw, dh); } catch (e) {}
+    x.restore();
     if (!camFrameW) return;
-    var k = camCv.width / camFrameW;
-    if (camQuad) { x.strokeStyle = '#2ee59d'; x.lineWidth = 2; x.beginPath(); camQuad.forEach(function(p, i){ x[i ? 'lineTo' : 'moveTo'](p.x * k, p.y * k); }); x.closePath(); x.stroke(); }
-    (marking || []).forEach(function(p){ x.fillStyle = '#ffd23f'; x.beginPath(); x.arc(p.x * k, p.y * k, 5, 0, 7); x.fill(); });
+    var k = W / camFrameW;
+    if (camQuad) { x.strokeStyle = '#2ee59d'; x.lineWidth = 3; x.beginPath(); camQuad.forEach(function(p, i){ x[i ? 'lineTo' : 'moveTo'](p.x * k, p.y * k); }); x.closePath(); x.stroke(); }
+    (marking || []).forEach(function(p){ x.fillStyle = '#ffd23f'; x.beginPath(); x.arc(p.x * k, p.y * k, 8, 0, 7); x.fill(); });
   }
+  function previewLoop(){ if (!camStream) return; drawOverlay(); camLoop = setTimeout(previewLoop, 90); }
   function frameSize(){
     var vw = camVideo.videoWidth, vh = camVideo.videoHeight, odd = camRot % 180 !== 0, k = Math.min(1, 1920 / Math.max(vw, vh));
     var dw = Math.round(vw * k), dh = Math.round(vh * k), W = odd ? dh : dw, H = odd ? dw : dh;
@@ -1907,7 +1916,10 @@ var CamVision = (function(){
       grabBitmaps(3, function(list){
         if (!camStream) { (list || []).forEach(function(b){ b.close(); }); return; }
         if (!list) { viaFrames(); return; }
-        var z = frameSize(); m.bitmaps = list; m.W = z.W; m.H = z.H; m.dw = z.dw; m.dh = z.dh; m.rot = camRot;
+        // размеры берём у самого кадра: в Safari они могут отличаться от videoWidth
+        var bw = list[0].width, bh = list[0].height, sc = Math.min(1, 1920 / Math.max(bw, bh)), dw = Math.round(bw * sc), dh = Math.round(bh * sc), rotOdd = camRot % 180 !== 0;
+        camFrameW = rotOdd ? dh : dw; camFrameH = rotOdd ? dw : dh;
+        m.bitmaps = list; m.W = camFrameW; m.H = camFrameH; m.dw = dw; m.dh = dh; m.rot = camRot;
         sendCam(m, list);
       });
     } else viaFrames();
@@ -1933,7 +1945,7 @@ var CamVision = (function(){
   }
   function stopCam(){
     if (camStream) camStream.getTracks().forEach(function(t){ t.stop(); });
-    camStream = null; clearTimeout(camTimer); clearTimeout(camWait); camVideo.srcObject = null; $('camBox').hidden = true; marking = null; camCv.className = '';
+    camStream = null; clearTimeout(camTimer); clearTimeout(camWait); clearTimeout(camLoop); camVideo.srcObject = null; $('camBox').hidden = true; marking = null; camCv.className = '';
     if (camWorker) { try { camWorker.terminate(); } catch (e) {} } camWorker = null;
     $('btnCam').textContent = 'Смотреть камерой';
     try { if (wake) wake.release(); } catch (e) {} wake = null;
@@ -1950,7 +1962,7 @@ var CamVision = (function(){
       eyeSay('Камера включена. Ищу стол.');
       if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function(w){ wake = w; }).catch(function(){});
       return camVideo.play();
-    }).then(function(){ layoutCam(); touched(); camTick(); }).catch(function(e){
+    }).then(function(){ layoutCam(); touched(); previewLoop(); camTick(); }).catch(function(e){
       if (camStream) stopCam();
       eyeSay('Камера не включилась. Разрешите доступ к камере в браузере. На странице по ссылке Claude камера запрещена: откройте сайт на GitHub.', true);
     });
@@ -1960,7 +1972,7 @@ var CamVision = (function(){
   window.addEventListener('resize', function(){ if (camStream) layoutCam(); });
   $('btnRot').addEventListener('click', function(){
     camRot = (camRot + 90) % 360; camQuad = null; camManual = false; camView = null; marking = null; camCv.className = ''; votes = []; layoutCam();
-    eyeSay('Кадр повёрнут. Если он снова лежит на боку, нажмите ещё раз.');
+    eyeSay('Поворот ' + camRot + '°. Если картинка всё ещё лежит на боку, нажмите ещё раз.');
   });
   $('btnCorners').addEventListener('click', function(){ marking = []; camCv.className = 'marking'; drawOverlay(); eyeSay('Коснитесь на картинке четырёх углов экрана с игрой.'); });
   $('btnAuto').addEventListener('click', function(){ marking = null; camCv.className = ''; camManual = false; camQuad = null; camView = null; votes = []; drawOverlay(); eyeSay('Ищу экран сам.'); });
