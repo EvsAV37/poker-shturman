@@ -1926,8 +1926,9 @@ var CamVision = (function(){
     else if (++camMiss >= 6) { camView = null; camMiss = 0; }
     drawOverlay();
     if (o.bitmap) drawEye(o.bitmap, o.w, o.h, r);
+    if (!sure) { votes = []; eyeSay('Стола пока не вижу. Наведите камеру на экран с игрой.'); camTimer = setTimeout(camTick, pause); return; }
     var m = voted(r);
-    if (m) applyVision(m, false); else eyeSay(sure ? describe(r) : 'Стола пока не вижу. Наведите камеру на экран с игрой.');
+    if (m) applyVision(m, false); else eyeSay(describe(r));
     camTimer = setTimeout(camTick, pause);
   }
   function stopCam(){
