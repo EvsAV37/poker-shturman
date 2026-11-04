@@ -1,0 +1,1718 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1d19">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Штурман">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>Покерный штурман</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Sofia+Sans+Extra+Condensed:wght@700;800&display=swap">
+<style>
+/* Раскладка: цветная лента вердикта всегда сверху, под ней карты, затем данные раздачи. На широком экране две колонки. */
+:root{
+  --bg:#dfe9e3; --surface:#eef4ef; --line:#bccdc3; --ink:#12241e; --muted:#4f665b; --accent:#0d6650;
+  --stock:#fffdf7; --stock-line:#cfd6cc;
+  --spade:#1b2026; --heart:#c4232d; --diamond:#1a5cc0; --club:#117a3b;
+  --v-raise:#0c7350; --v-call:#8f5c0b; --v-check:#3a5563; --v-fold:#a92d2a; --v-allin:#5b2a86; --v-wait:#47584f;
+  --on-v:#ffffff; --v:var(--v-wait);
+  --m-raise:#9fd6bd; --m-call:#ecd08f; --m-allin:#c7b1e6; --m-none:#e6ede8; --m-ink:#12241e;
+  --display:"Sofia Sans Extra Condensed","Arial Narrow",Impact,sans-serif;
+  --body:"Golos Text",Roboto,"Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1d19; --surface:#142a25; --line:#2a463d; --ink:#e8f0ea; --muted:#9cb2a7; --accent:#62cba6;
+  --stock:#f4f1e7; --stock-line:#3a5549;
+  --m-raise:#1f7558; --m-call:#7d5c1c; --m-allin:#5d4289; --m-none:#1a322c; --m-ink:#e8f0ea; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0d1d19; --surface:#142a25; --line:#2a463d; --ink:#e8f0ea; --muted:#9cb2a7; --accent:#62cba6;
+  --stock:#f4f1e7; --stock-line:#3a5549;
+  --m-raise:#1f7558; --m-call:#7d5c1c; --m-allin:#5d4289; --m-none:#1a322c; --m-ink:#e8f0ea; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 14px/1.4 var(--body);-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--v)}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.verdict{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--v);color:var(--on-v);transition:background-color .16s linear}
+.vin{max-width:980px;margin:0 auto;padding-block:8px 9px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:5px}
+.vtop{display:flex;align-items:center;gap:12px}
+.vmain{flex:1;min-width:0;display:flex;align-items:baseline;flex-wrap:wrap;column-gap:8px;font-family:var(--display);line-height:.95;text-transform:uppercase}
+#vWord{font-size:clamp(40px,12.5vw,58px);font-weight:800;letter-spacing:.01em}
+#vSize{font-size:clamp(24px,7vw,34px);font-weight:700;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(44px,auto));gap:10px;margin:0}
+.stats div{display:grid;gap:1px;text-align:right}
+.stats dt{font-size:10.5px;letter-spacing:.03em;opacity:.85}
+.stats dd{margin:0;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.meter{position:relative;height:7px;border-radius:2px;background:color-mix(in srgb,var(--on-v) 24%,transparent)}
+.meter i{position:absolute;inset:0 auto 0 0;width:0;background:var(--on-v);border-radius:2px;transition:width .2s ease-out}
+.meter b{position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1px;background:var(--on-v);box-shadow:0 0 0 1.5px var(--v)}
+#vLine{margin:0;font-size:13px;line-height:1.3;min-height:1.3em}
+.src{font-size:11.5px;opacity:.86;white-space:nowrap}
+
+.layout{max-width:980px;margin:0 auto;padding-block:10px 18px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:14px}
+.col{display:grid;gap:12px;min-width:0;align-content:start}
+.head{display:flex;align-items:center;gap:8px;min-height:32px}
+.head h2{flex:0 1 auto;min-width:0;margin:0;font:800 21px/1 var(--display);text-transform:uppercase;letter-spacing:.03em}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:3px;background:var(--accent);color:var(--bg)}
+#btnNew{margin-left:auto;flex:none;white-space:nowrap;border:1.5px solid var(--accent);background:transparent;color:var(--accent);font-weight:600;font-size:13px;padding:6px 11px;border-radius:5px}
+
+.slots{display:flex;justify-content:space-between;gap:8px;align-items:flex-end;min-width:0}
+.group{display:grid;gap:3px;min-width:0}
+.group.me{flex:2}.group.flop{flex:3}.group.one{flex:1}
+.group small{font-size:10.5px;color:var(--muted);letter-spacing:.02em}
+.gcards{display:flex;gap:3px}
+.slot{flex:1;min-width:0;max-width:42px;aspect-ratio:5/7;padding:0;border-radius:4px;border:1.5px dashed var(--line);background:transparent;display:grid;place-content:center;line-height:1;font-family:var(--display);font-weight:800}
+.slot.target{border-color:var(--accent);border-style:solid;box-shadow:inset 0 0 0 1px var(--accent)}
+.slot.full{background:var(--stock);border:1px solid var(--stock-line)}
+.slot span{display:block;font-size:clamp(17px,5.4vw,23px);text-align:center}
+.slot em{display:block;font-style:normal;font-size:clamp(14px,4.4vw,18px);text-align:center;margin-top:1px}
+#handLine{margin:0;font-weight:500;font-size:13.5px;min-height:1.4em}
+
+.deck{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:2px}
+.c{height:41px;padding:0;border:1px solid var(--stock-line);border-radius:3px;background:var(--stock);display:grid;place-content:center;line-height:1;font-family:var(--display);font-weight:800}
+.c span{font-size:17px;text-align:center}
+.c em{font-style:normal;font-size:12px;text-align:center}
+.c.on{background:transparent;opacity:.32;border-style:dashed}
+.c.on,.c.on span,.c.on em{color:var(--ink)}
+.s0{color:var(--spade)}.s1{color:var(--heart)}.s2{color:var(--diamond)}.s3{color:var(--club)}
+
+.row{display:grid;gap:4px;min-width:0}
+.row>label,.row>.lab{font-size:12px;color:var(--muted);font-weight:500}
+.seg{display:flex;gap:2px;background:var(--line);padding:2px;border-radius:5px}
+.seg button{flex:1 1 0;min-width:0;min-height:38px;padding:3px 1px;border:0;background:transparent;border-radius:3px;font-size:12.5px;font-weight:500;color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--accent);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent)}
+.seg button:disabled{opacity:.32;cursor:default}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stepper{display:flex;align-items:stretch;background:var(--surface);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.stepper button{width:44px;min-height:38px;border:0;background:transparent;font-size:20px;font-weight:500;color:var(--accent)}
+.stepper output{flex:1;display:grid;place-content:center;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.fields label{display:grid;gap:3px;font-size:12px;color:var(--muted);font-weight:500;min-width:0}
+.fields input{width:100%;min-width:0;height:40px;padding:0 7px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+#hint{margin:0;font-size:12px;color:var(--muted);line-height:1.35}
+#hint.warn{color:var(--v-fold);font-weight:500}
+
+details{border-top:1px solid var(--line);padding-top:8px;min-width:0}
+summary{cursor:pointer;font-weight:600;font-size:13.5px;min-height:30px;display:flex;align-items:center;gap:6px}
+summary::after{content:"+";margin-left:auto;font-size:18px;color:var(--accent)}
+details[open] summary::after{content:"–"}
+.mx{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:1px;margin-top:6px;max-width:520px}
+.mx div{aspect-ratio:1;display:grid;place-content:center;font-size:clamp(7.5px,2.35vw,10px);font-weight:500;background:var(--m-none);color:var(--muted);letter-spacing:-.02em}
+.mx .on{color:var(--m-ink);font-weight:600}
+.mx .out{opacity:.4}
+.mx .me{outline:2px solid var(--ink);outline-offset:-1px;position:relative;z-index:1}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin:7px 0 0;padding:0;list-style:none;font-size:12px;color:var(--muted)}
+.legend li{display:flex;align-items:center;gap:5px}
+.legend i{width:12px;height:12px;border-radius:2px;background:var(--m-none)}
+.legend .r{background:var(--m-raise)}.legend .k{background:var(--m-call)}.legend .a{background:var(--m-allin)}
+.help p{margin:6px 0 0;font-size:13px;max-width:65ch}
+.help b{font-weight:600}
+.eye{display:grid;gap:7px;min-width:0}
+.eyebar{display:flex;flex-wrap:wrap;gap:6px}
+.eyebtn{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:6px 12px;border-radius:5px;border:1.5px solid var(--accent);background:transparent;color:var(--accent);font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap}
+.eyebtn.main{background:var(--accent);color:var(--bg)}
+.eyebtn[hidden]{display:none}
+.sr{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.sr:focus-visible + .eyebtn{outline:2px solid var(--accent);outline-offset:2px}
+#eyeStatus{margin:0;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+#eyeStatus.warn{color:var(--v-fold);font-weight:500}
+#dEye{padding-top:6px}
+#eyeCv{display:block;max-width:100%;height:auto;margin-top:6px;border-radius:4px;background:var(--line)}
+.check{display:flex;gap:7px;align-items:center;font-size:13px;margin-top:7px}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+.note{margin:6px 0 0;font-size:12px;color:var(--muted)}
+footer{display:grid;gap:4px;font-size:12px;color:var(--muted);max-width:65ch}
+footer p{margin:0}
+footer a{color:var(--accent)}
+
+@media (min-width:760px){
+  .layout{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);column-gap:28px}
+  .wide{grid-column:1/-1}
+  .c{height:46px}
+}
+@media (max-height:560px){
+  .vin{padding-block:5px 6px;gap:3px}
+  #vWord{font-size:36px}#vSize{font-size:23px}
+  .stats dd{font-size:15px}
+  .meter{height:5px}
+  #vLine{font-size:12.5px}
+}
+@media (prefers-reduced-motion:reduce){.verdict,.meter i{transition:none}}
+</style>
+</head>
+<body>
+
+<header class="verdict" id="verdict">
+  <div class="vin" aria-live="polite">
+    <div class="vtop">
+      <div class="vmain"><span id="vWord">Считаю</span><span id="vSize"></span></div>
+      <dl class="stats">
+        <div><dt>Шанс</dt><dd id="sEq">—</dd></div>
+        <div><dt>Нужно</dt><dd id="sNeed">—</dd></div>
+        <div><dt>Выгода</dt><dd id="sEv">—</dd></div>
+      </dl>
+    </div>
+    <div class="meter" aria-hidden="true"><i id="mFill"></i><b id="mTick" hidden></b></div>
+    <p id="vLine"><span id="vReason"></span> <span class="src" id="vSrc"></span></p>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="eye wide" aria-label="Зрение">
+    <div class="eyebar">
+      <button type="button" class="eyebtn main" id="btnEye">Смотреть экран</button>
+      <input class="sr" id="fShot" type="file" accept="image/*"><label class="eyebtn" for="fShot">Проверить скриншот</label>
+      <button type="button" class="eyebtn" id="btnTop" hidden>Поверх игры</button>
+    </div>
+    <p id="eyeStatus">Штурман сам найдёт карты, суммы и дилера на первом снимке. Разметка не нужна.</p>
+    <details id="dEye">
+      <summary>Что видит штурман</summary>
+      <canvas id="eyeCv" width="720" height="405"></canvas>
+      <label class="check"><input type="checkbox" id="chkPot">В банке на экране уже учтены текущие ставки</label>
+      <p class="note">Зелёным обведены карты, жёлтым банк, голубым стеки, оранжевым ставки, розовым дилер. Если поле считано неверно, исправьте его вручную: до следующей раздачи штурман его не тронет.</p>
+    </details>
+  </section>
+  <section class="col" aria-label="Карты">
+    <div class="head">
+      <h2>Холдем без лимита</h2>
+      <span class="tag" id="exTag">Пример</span>
+      <button type="button" id="btnNew">Новая раздача</button>
+    </div>
+    <div class="slots" id="slots"></div>
+    <p id="handLine"></p>
+    <div class="deck" id="deck"></div>
+  </section>
+
+  <section class="col" aria-label="Данные раздачи">
+    <div class="row">
+      <span class="lab">Ваша позиция</span>
+      <div class="seg" id="segPos"></div>
+    </div>
+    <div class="row">
+      <span class="lab">Последнее повышение до флопа</span>
+      <div class="seg" id="segSpot"></div>
+    </div>
+    <div class="row" id="rowVill">
+      <span class="lab" id="labVill">Кто поднял</span>
+      <div class="seg" id="segVill"></div>
+    </div>
+    <div class="fields">
+      <label>Банк<input id="fPot" type="text" inputmode="decimal" autocomplete="off" placeholder="0"></label>
+      <label>Колл<input id="fCall" type="text" inputmode="decimal" autocomplete="off" placeholder="0"></label>
+      <label>Мой стек<input id="fStack" type="text" inputmode="decimal" autocomplete="off" placeholder="0"></label>
+      <label>ББ<input id="fBb" type="text" inputmode="decimal" autocomplete="off" placeholder="0"></label>
+    </div>
+    <p id="hint">Банк: все фишки на столе вместе со ставкой соперника. Колл: сколько вам нужно доплатить.</p>
+    <div class="two">
+      <div class="row">
+        <span class="lab">Соперников в раздаче</span>
+        <div class="stepper"><button type="button" id="oppMinus" aria-label="Меньше соперников">−</button><output id="oppVal">1</output><button type="button" id="oppPlus" aria-label="Больше соперников">+</button></div>
+      </div>
+      <div class="row">
+        <span class="lab">Мест за столом</span>
+        <div class="stepper"><button type="button" id="tblMinus" aria-label="Меньше мест">−</button><output id="tblVal">6</output><button type="button" id="tblPlus" aria-label="Больше мест">+</button></div>
+      </div>
+    </div>
+    <div class="row">
+      <span class="lab">Как играют соперники</span>
+      <div class="seg" id="segStyle"></div>
+    </div>
+  </section>
+
+  <details class="wide" id="dMx">
+    <summary id="mxTitle">Таблица рук</summary>
+    <div class="mx" id="mx"></div>
+    <ul class="legend">
+      <li><i class="r"></i><span id="lgR">Рейз</span></li>
+      <li><i class="a"></i>Олл-ин</li>
+      <li><i class="k"></i>Колл</li>
+      <li><i></i><span id="lgN">Фолд</span></li>
+    </ul>
+    <p class="note">s: карты одной масти, o: разных мастей, T: десятка. Цветные доли в клетке показывают, как часто выбирать действие.</p>
+  </details>
+
+  <details class="wide help" id="dHelp">
+    <summary>Как читать совет</summary>
+    <p><b>Шанс.</b> Сколько раз из ста вы выиграете банк. Приложение разыгрывает 14 000 раздач против рук, с которыми соперники обычно продолжают, а не против любых двух карт. Если соперник поставил, слабые руки в его диапазоне встречаются реже.</p>
+    <p><b>Нужно.</b> Цена колла: колл ÷ (банк + колл). Если шанс выше, колл выгоден на дистанции.</p>
+    <p><b>Выгода.</b> Сколько фишек колл приносит в среднем за раздачу.</p>
+    <p><b>До флопа.</b> Для стека около 100 ББ совет берётся из открытых солверных таблиц: 78 решений с частотами, без рейка. Если у руки несколько действий, сверху показано самое частое, а рядом все частоты. Выбирайте действия примерно с такой частотой.</p>
+    <p><b>Короткий стек.</b> При стеке до 12 ББ работает равновесие Нэша «олл-ин или фолд», посчитанное отдельно. Оно предполагает, что на олл-ин отвечает один игрок.</p>
+    <p><b>Повышения.</b> Рейз: соперник открыл, вы ещё не вкладывались. Ререйз: вы открыли, вас подняли. 4-бет: вы сделали ререйз, а открывший поднял снова или пошёл олл-ин. 5-бет: вы сделали 4-бет, а соперник пошёл олл-ин.</p>
+    <p><b>Приближённо.</b> Лимпы, колл перед вами, чужой ререйз и необычные ставки в солверное дерево не входят. Тогда совет идёт из упрощённых таблиц, и приложение помечает его словом «Приближённо».</p>
+    <p><b>Зрение.</b> Захват экрана работает в файле «Покерный штурман.html», открытом в Chrome на ПК. Держите его в отдельном окне: в фоновой вкладке браузер может замедлить снимки. На Android и на странице по ссылке можно разобрать загруженный или вставленный скриншот. Распознавание работает на устройстве, снимки никуда не отправляются.</p>
+    <p><b>Новая раздача.</b> Очищает карты, банк и колл и сдвигает позицию на одно место, как при движении баттона. Стек, ББ и число мест сохраняются.</p>
+    <p><b>Ограничения.</b> Таблицы приближённые: игра после флопа в них оценена, а не решена полностью. Они недооценивают одномастные связки вроде T9s и 76s, особенно с ранних позиций. Для 7–9 мест используются таблицы на 6 мест. Приложение не видит манеру конкретного соперника и не считает побочные банки. Оно рассчитано на игру на фишки и тренажёры: покер-румы запрещают подсказки в игре на деньги.</p>
+  </details>
+
+  <footer class="wide">
+    <p>© 2026 Евсеев А.В.</p>
+    <p>Таблицы до флопа: <a href="https://github.com/a-hanamoto/leakproof-preflop-ranges">Leakproof 6max-100bb-norake 1.0.0</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Данные сжаты для приложения, выбор действия и размер ставки рассчитываются по ним.</p>
+  </footer>
+</main>
+
+<script>
+/*ENGINE-START*/
+var PF_RAW=[["","UTG",1.5,1.0,["fold","raise 2bb"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000000000000000006oooooo00000oooooooo00000oooooooo00oo0oooooooocoooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooocoooooooooooookoooooooooooookoooooooooooook","oooooooooooooooooooi000000ooooo00000000ooooo00000000oo00o00000000c0000o0000000000000o0000000000000o0000000000000o0000000000000c000000000000040000000000000400000000000004"]],["","HJ",1.5,1.0,["fold","raise 2bb"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["0000000000000000000006oooo000000ooooooo00000oooooooo006o0cooooooo0iooo0ooooooo0ooooo0oooooo6oooooo0ooooooooooooo0ooooooooooooo0ooooooooooooogoooooooooooookoooooooooooook","oooooooooooooooooooooi0000oooooo0000000ooooo00000000ooi0oc0000000o6000o0000000o00000o000000i000000o0000000000000o0000000000000o000000000000080000000000000400000000000004"]],["","CO",1.5,1.0,["fold","raise 2.5bb"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000000000000000000000iio0000006oooooo000000ooooooo000i00ooooooo00ooo0ooooooo0ooooo0oooooo0oooooo0ooooo0ooooooo0oooo6oooooooo0ooocooooooooo4ooiooooooooookoioooooooooook","ooooooooooooooooooooooo660ooooooi000000oooooo0000000ooo6oo0000000oo000o0000000o00000o000000o000000o00000o0000000o0000i00000000o000c000000000k0060000000000406000000000004"]],["","BTN",1.5,1.0,["fold","raise 2.5bb"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000000000000000000000000000000000000c0000000000ooo00000000ooooo00000000ooooo00cooo06ooooo00ooooo0ooooo00oooooo0oooo0iooooooo0ooo0ooooooooo0oo0oooooooooo0o0ooooooooooo0","oooooooooooooooooooooooooooooooooooooocoooooooooo000oooooooo00000oooooooo00000ooc000oi00000oo00000o00000oo000000o0000o60000000o000o000000000o00o0000000000o0o00000000000o"]],["","SB",1.5,0.5,["fold","raise 3bb"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["0000000000000000000000000000000000000ci000000000iooo00000000ooooo00000000ooooo000ooo00ooooo00ooooo0ooooo00oooooo0oooo00ooooooo0ooo0coooooooo0oo0oooooooooo0o0ooooooooooo4","oooooooooooooooooooooooooooooooooooooc6ooooooooo6000oooooooo00000oooooooo00000ooo000oo00000oo00000o00000oo000000o0000oo0000000o000oc00000000o00o0000000000o0o00000000000k"]],["SB raise 3bb","BB",4.0,2.0,["fold","call","raise 9bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000oooo000000000ooooooi000000oooooooo00000ooooooooo0000oooooooooo0","00000000oiioo0000ooooooooo000oooooooooo0oo0oooooooii0ooo0oooooioo0oooo0ooooooo6oo0oo0ooooooc0000oo0ooooooo0000oo0oooooo00000060ooooo00000000gooo6000000000oo000000000000o","oooooooo06600oooo000000000ooo0000000000o00o000000066o000o00000600o0000o0000000i00o00o000000coooo00o0000000000000o0000000000000o00000000000008000i00000000000oo00000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["SB raise 3bb, BB raise 9bb","SB",12.0,6.0,["fold","call","raise 24bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzi9zzzzzzzzz9---zzzzzzzz-----zzzzzzzz-----zzz---zz-----zz-----z-----zz------z----zz-------z---zi--------z--z----------z-z-----------t",["0000000000000000000006iooo0000000oooooo0000000ooo---06ii000o-----0oooo00o-----6oo---0o-----oo-----0-----oo------0----oo-------0---oo--------0--o----------0-o-----------c","0000oooooo6oo00oc6oooi60000c0oooo0000000io0ooo000---6c000oo0-----o00000o0-----i00---o0-----00-----o-----00------o----00-------o---00--------o--0----------o-0-----------8","o6oo000000000co00000000000cco0000000000o008000000---i666k000-----00000o00-----000---00-----00-----0-----00------0----00-------0---00--------0--0----------0-0-----------0","0i00000000i00c00ci00000000c000000000000060g000000---00004000-----00000000-----000---00-----00-----0-----00------0----00-------0---00--------0--0----------0-0-----------4"]],["SB raise 3bb, BB raise 9bb, SB raise 24bb","BB",33.0,15.0,["fold","call","allin"],"zzzzzzzz-99--zzzz---------zzz----------z--z-------99z---z-----9--z----z-------q--z--z------izzzz--z-------------z-------------z-------------c---q-----------zz-----------",["00000000-6c--0000---------000----------0--0-------ooi---0-----o--o----0-------o--o--0------ooooo--0-------------0-------------0-------------0---o-----------oo-----------","00oooo6o-i6--00oc---------6o0----------o--0-------006---0-----0--0----o-------0--0--o------00000--o-------------o-------------o-------------o---0-----------00-----------","oo0000i0-06--oo0c---------i0o----------0--o-------000---o-----0--0----0-------0--0--0------00000--0-------------0-------------0-------------0---0-----------00-----------"]],["SB raise 3bb, BB raise 9bb, SB raise 24bb, BB allin","SB",124.0,76.0,["fold","allin"],"z9zz---------iz-----------iiz----------z--c---------q999t-------------z--------------------------------------------------------------------------------------------------",["000o---------00-----------io0----------o--0---------oooo0-------------0--------------------------------------------------------------------------------------------------","ooo0---------oo-----------60o----------0--o---------0000o-------------o--------------------------------------------------------------------------------------------------"]],["SB raise 3bb, BB raise 9bb, SB allin","BB",109.0,91.0,["fold","allin"],"zzzzzzzz-99--zzzz---------zzz----------z--z-------99z---z-----9--z----z-------q--z--z------izzzz--z-------------z-------------z-------------c---q-----------zz-----------",["0000oooo-oo--00oo---------0o0----------o--0-------ooo---0-----o--o----0-------o--o--4------ooooo--4-------------4-------------k-------------o---o-----------oo-----------","oooo0000-00--oo00---------o0o----------0--o-------000---o-----0--0----o-------0--0--k------00000--k-------------k-------------4-------------0---0-----------00-----------"]],["BTN raise 2.5bb","SB",4.0,2.0,["fold","raise 11.5bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000006o6cio00000cooooooo000006ooooooo06c00iooooooo0ooo0iooooooo6oooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0oooooooooooookoooooooooooooooooooooooooooo","oooooooi0ic60oooooc0000000oooooi0000000oicoo60000000o000o60000000i0000o0000000000000o0000000000000o0000000000000o0000000000000o000000000000040000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["BTN raise 2.5bb","BB",4.0,1.5,["fold","call","raise 14bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["000000000000000000000000000000000000000000000000000000000000000oo0000000000ooo00oo0o0000ioo00ooooo0006oo00oooooo000oo06ooooooo000o0ooooooooo0000oooooooooo000ooooooooooo0","00000oooooioo000iooooooooo0o0ooooooocoi6oo0ooooooooooooo0ooooio00oooo00oooo000oo00o00ooo6006o000000ooi00oo000000ooo00000000000ooo0o000000000oooo0000000000oo000000000000o","ooooo00000600ooo6000000000o0o0000000c06i00o0000000000000o000060000000oo0000000000000o000000i000000o000000000000000000oi0000000000000000000000000000000000000o000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["BTN raise 2.5bb, BB raise 14bb","BTN",17.0,11.5,["fold","call","raise 29.5bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzizzzzzzzzzz---zzzzzzzz-----zzzzzzzz-----zzi---zq-----zz-----z-----zz------z----z9-------z---z---------z--z----------z-z-----------z",["00000000oiioo000000ioooooo00000iooooooo0oo00ooooo---0ooo0ooo-----ooooo0oo-----ooo---0o-----oo-----0-----oo------0----oo-------0---o---------0--o----------4-o-----------o","000ooooo066000000oo0000000i60co60000000o000o00000---o0000000-----00000o00-----000---o0-----00-----o-----00------o----00-------o---0---------o--0----------4-0-----------0","o0o00000000000c000060000000ic00000000000000000000---00008000-----00000000-----000---00-----00-----0-----00------0----00-------0---0---------0--0----------0-0-----------0","0o00000000000ocoo00000000060cc000000000000o000000---0000g000-----00000000-----000---00-----00-----0-----00------0----00-------0---0---------0--0----------g-0-----------0"]],["BTN raise 2.5bb, BB raise 14bb, BTN raise 29.5bb","BB",44.0,15.5,["fold","call","allin"],"zzzzz-----9--zzz9---------z-z-------i-9q--z-------------z----9-------zz-------------z------q------z------------------zq-------------------------------------z------------",["00000-----0--0000---------0-0-------o-oo--0-------------0----o-------o0-------------0------o------0------------------oo-------------------------------------o------------","00coo-----o--00oo---------o-0-------0-00--0-------------0----0-------0o-------------o------0------o------------------00-------------------------------------0------------","ooc00-----0--oo00---------0-o-------0-00--o-------------o----0-------00-------------0------0------0------------------00-------------------------------------0------------"]],["BTN raise 2.5bb, BB raise 14bb, BTN raise 29.5bb, BB allin","BTN",130.0,70.5,["fold","allin"],"z-z-----------i----9-------qi---------------------------c----------------------------------------------------------------------------------------------------------------",["0-0-----------0----o-------o0---------------------------0----------------------------------------------------------------------------------------------------------------","o-o-----------o----0-------0o---------------------------o----------------------------------------------------------------------------------------------------------------"]],["BTN raise 2.5bb, BB raise 14bb, BTN allin","BB",114.5,86.0,["fold","allin"],"zzzzz-----9--zzz9---------z-z-------i-9q--z-------------z----9-------zz-------------z------q------z------------------zq-------------------------------------z------------",["000oo-----o--00oo---------o-0-------o-oo--0-------------0----o-------og-------------k------o------o------------------oo-------------------------------------o------------","ooo00-----0--oo00---------0-o-------0-00--o-------------o----0-------08-------------4------0------0------------------00-------------------------------------0------------"]],["BTN raise 2.5bb, SB raise 11.5bb","BTN",15.0,9.0,["fold","call","raise 24bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzizzzzzzzzzz---zzzzzzzz-----zzzzzzzz-----zzi---zq-----zz-----z-----zz------z----z9-------z---z---------z--z----------z-z-----------z",["00000000ocioo000006ooooooo00006oooooooo0oo00ooooo---0ooo0ooo-----ooooo0oo-----ooo---0o-----oo-----0-----oo------0----oo-------0---o---------0--o----------0-o-----------o","000oooc60c60000o06i00000000o00000000000o000600000---c0000000-----00000g00-----000---o0-----00-----o-----00------o----00-------o---0---------k--0----------o-0-----------0","o0o000ci000000400c0000000000c0000000000000c000000---c0000000-----00000800-----000---00-----00-----0-----00------0----00-------0---0---------0--0----------0-0-----------0","0o00000000000ok0o600000000o0coi00000000000ci00000---0000o000-----00000000-----000---00-----00-----0-----00------0----00-------0---0---------4--0----------0-0-----------0"]],["BTN raise 2.5bb, SB raise 11.5bb, BTN raise 24bb","SB",36.5,12.5,["fold","call","allin"],"zzzzzzzq-qi9-zzzzzi-------zzzzzq-------zqizz9-------z---z9-------q----z-------------z-------------z-------------z-------------z-------------6----------------------------",["0000066o-ooo-000000-------0o00co-------0oo00o-------o---00-------o----0-------------0-------------0-------------0-------------0-------------0----------------------------","00iooii0-000-00oooo-------o00oc0-------o00ko0-------0---oo-------0----o-------------o-------------o-------------o-------------o-------------o----------------------------","oo600000-000-oo0000-------00o000-------000400-------0---00-------0----0-------------0-------------0-------------0-------------0-------------0----------------------------"]],["BTN raise 2.5bb, SB raise 11.5bb, BTN raise 24bb, SB allin","BTN",125.0,76.0,["fold","allin"],"z-z---iq------6--i----------i-------------i---------i-----------------c--------------------------------------------------------------------------------------------------",["0-0---oo------0--o----------0-------------0---------o-----------------8--------------------------------------------------------------------------------------------------","o-o---00------o--0----------o-------------o---------0-----------------g--------------------------------------------------------------------------------------------------"]],["BTN raise 2.5bb, SB raise 11.5bb, BTN allin","SB",112.5,88.5,["fold","allin"],"zzzzzzzq-qi9-zzzzzi-------zzzzzq-------zqizz9-------z---z9-------q----z-------------z-------------z-------------z-------------z-------------6----------------------------",["000ooooo-ooo-00oooo-------co0ooo-------ooo0oo-------o---0o-------o----o-------------o-------------o-------------o-------------o-------------o----------------------------","ooo00000-000-oo0000-------c0o000-------000o00-------0---o0-------0----0-------------0-------------0-------------0-------------0-------------0----------------------------"]],["CO raise 2.5bb","BTN",4.0,2.5,["fold","call","raise 7.5bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000000o6cci0000000oooooo000000ooooooo06000oooooooo06oo0oooooooo6oooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0oooooooooooooooooooooooooooo","00000ccc0c0600006o00000000060o60000000066o4o000000000i0000000000000000k0000000000000k0000000000000c00000000000004000000000000040000000000000k0000000000000000000000000000","oooooccc06c66oooi0oo000000oio0io0000000ic0k000000000o000o00000000i00004000000000000040000000000000c0000000000000k0000000000000k000000000000040000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["CO raise 2.5bb","SB",4.0,2.0,["fold","raise 11.5bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["000000cooiooo00000oooooooo00006oooooooo0io0coooooooocooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo","ooooooc006000ooooo00000000ooooi00000000o60oc00000000c000o0000000000000o0000000000000o0000000000000o0000000000000000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["CO raise 2.5bb","BB",4.0,1.5,["fold","call","raise 14bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["0000000000000000000000000000000000000000000000000ooo000000000oooo0000c0000oooo0ooooo0000ooo0oooooo000ooo6ooooooo000oo6oooooooo000ocooooooooo00oioooooooooo0oiooooooooooo0","000cooooooooo000oiooo6ooooco0oooooooooooo60iooooo000oooi0oooo0000oooo00ooo0000i00000cooo000o000000ooo000i0000000ooo00600000000ooo00000000000oo000000000000o0000000000000o","oooc000000000ooo06000i0000c0o000000000000io6000000000006o000000000000co0000000600000c00000000000000000000000000000000c000000000000c00000000000060000000000006000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["CO raise 2.5bb, BB raise 14bb","CO",17.0,11.5,["fold","call","raise 29.5bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzz99-zzzzzzq------zzzzzz-------zzz9zz-------zz---z-------z-----z------z------z-----z-------z----q--------z---i---------t--9----------6-9-----------6",["000000iooiooo000006oooooo-0o00ooo------coo0oo-------oooo0o-------oo---0-------o-----0------o------0-----o-------0----o--------o---o---------o--o----------o-o-----------o","00oooo600600000ii00000000-i00o000------c00g00-------0000o0-------00---o-------0-----o------0------o-----0-------o----0--------0---0---------0--0----------0-0-----------0","ko000000000000c66oi000000-60g0000------000800-------000000-------00---0-------0-----0------0------0-----0-------0----0--------0---0---------0--0----------0-0-----------0","4000000000000oc0000000000-0080000------000000-------000000-------00---0-------0-----0------0------0-----0-------0----0--------0---0---------0--0----------0-0-----------0"]],["CO raise 2.5bb, BB raise 14bb, CO raise 29.5bb","BB",44.0,15.5,["fold","call","allin"],"zzzi---------zzz-9---q----i-z------------qz9-----------9z------------iz-------9-----i--------------------------------i------------i------------9------------9------------",["0000---------000-i---o----0-0------------o0o-----------o0------------o0-------o-----0--------------------------------o------------o------------o------------o------------","00o0---------00o-6---0----o-0------------0o0-----------0o------------0o-------0-----o--------------------------------0------------0------------0------------0------------","oo0o---------oo0-0---0----0-o------------000-----------00------------00-------0-----0--------------------------------0------------0------------0------------0------------"]],["CO raise 2.5bb, BB raise 14bb, CO raise 29.5bb, BB allin","CO",130.0,70.5,["fold","allin"],"tz------------i99zq-------9-n-------------c------------------------------------------------------------------------------------------------------------------------------",["00------------0oooo-------o-0-------------0------------------------------------------------------------------------------------------------------------------------------","oo------------o0000-------0-o-------------o------------------------------------------------------------------------------------------------------------------------------"]],["CO raise 2.5bb, BB raise 14bb, CO allin","BB",114.5,86.0,["fold","allin"],"zzzi---------zzz-9---q----i-z------------qz9-----------9z------------iz-------9-----i--------------------------------i------------i------------9------------9------------",["00oo---------00o-o---o----o-0------------o0o-----------oo------------oo-------o-----o--------------------------------o------------o------------o------------o------------","oo00---------oo0-0---0----0-o------------0o0-----------00------------00-------0-----0--------------------------------0------------0------------0------------0------------"]],["CO raise 2.5bb, SB raise 11.5bb","CO",15.0,9.0,["fold","call","raise 24bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzz99-zzzzzzq------zzzzzz-------zzz9zz-------zz---z-------z-----z------z------z-----z-------z----q--------z---i---------t--9----------6-9-----------6",["000006ooociio000ciooooooo-060oooo------0oo0oo-------oooo0o-------oo---0-------o-----0------o------0-----o-------0----o--------0---o---------o--o----------o-o-----------o","00ooi6000000000i000000000-6i00000------o00000-------000040-------00---o-------0-----o------0------o-----0-------o----0--------o---0---------0--0----------0-0-----------0","oo006c00000000k6c60000000-i080000------000800-------0000k0-------00---0-------0-----0------0------0-----0-------0----0--------0---0---------0--0----------0-0-----------0","000000000c660o40000000000-00g0000------000g00-------000000-------00---0-------0-----0------0------0-----0-------0----0--------0---0---------0--0----------0-0-----------0"]],["CO raise 2.5bb, SB raise 11.5bb, CO raise 24bb","SB",36.5,12.5,["fold","call","allin"],"zzzzzzi--9---zzzzz--------zzzzq--------z9-zi--------i---z-------------z-------------z-------------z----------------------------------------------------------------------",["00000io--c---0000c--------0o00o--------oo-06--------o---0-------------0-------------0-------------0----------------------------------------------------------------------","00oco00--0---o0ooc--------o00o0--------00-oi--------0---o-------------o-------------o-------------o----------------------------------------------------------------------","oo0c060--c---0o000--------00o00--------00-00--------0---0-------------0-------------0-------------0----------------------------------------------------------------------"]],["CO raise 2.5bb, SB raise 11.5bb, CO raise 24bb, SB allin","CO",125.0,76.0,["fold","allin"],"zz--9i--------t9i9--------q-c-------------c-------------t----------------------------------------------------------------------------------------------------------------",["00--oo--------0ooo--------o-0-------------0-------------c----------------------------------------------------------------------------------------------------------------","oo--00--------o000--------0-o-------------o-------------c----------------------------------------------------------------------------------------------------------------"]],["CO raise 2.5bb, SB raise 11.5bb, CO allin","SB",112.5,88.5,["fold","allin"],"zzzzzzi--9---zzzzz--------zzzzq--------z9-zi--------i---z-------------z-------------z-------------z----------------------------------------------------------------------",["00ooooo--o---00ooo--------oo0oo--------oo-0o--------o---o-------------o-------------o-------------o----------------------------------------------------------------------","oo00000--0---oo000--------00o00--------00-o0--------0---0-------------0-------------0-------------0----------------------------------------------------------------------"]],["CO raise 2.5bb, BTN raise 7.5bb","CO",11.5,5.0,["fold","call","raise 20bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzz99-zzzzzzq------zzzzzz-------zzz9zz-------zz---z-------z-----z------z------z-----z-------z----q--------z---i---------t--9----------6-9-----------6",["000000000ciio000000oooooo-00000oo------0io00o-------oooo00-------oo---0-------o-----0------o------0-----o-------0----o--------0---o---------0--o----------0-o-----------4","000ooo0ooc660006c0o000000-0i0oo00------o000o0-------0000ko-------00---o-------0-----o------0------o-----0-------o----0--------o---0---------o--0----------o-0-----------k","ooo000o000000ooico0000000-o6o0000------060o00-------000040-------00---0-------0-----0------0------0-----0-------0----0--------0---0---------0--0----------0-0-----------0","0000000000000000000000000-0000000------000000-------000000-------00---0-------0-----0------0------0-----0-------0----0--------0---0---------0--0----------0-0-----------0"]],["CO raise 2.5bb, BTN raise 7.5bb, CO raise 20bb","BTN",29.0,12.5,["fold","call","allin"],"zzzzziii-9i99zzzq-zz------zqz-qz-------qi-t---------z---z--------q----6-------------6-------------i-------------t-------------t-------------6----------------------------",["00000000-066c0000-oo------000-oo-------oo-0---------o---0--------o----0-------------0-------------0-------------0-------------0-------------0----------------------------","00oooooo-006000oo-00------oo0-00-------00-o---------0---o--------0----o-------------o-------------k-------------o-------------o-------------o----------------------------","oo000000-oiccoo00-00------00o-00-------00-0---------0---0--------0----0-------------0-------------4-------------0-------------0-------------0----------------------------"]],["CO raise 2.5bb, BTN raise 7.5bb, CO raise 20bb, BTN allin","CO",121.5,80.0,["fold","allin"],"zzz---z------zzqiz--------z9z-----------9-z-------------6----------------------------------------------------------------------------------------------------------------",["00o---o------00ooo--------oo0-----------o-k-------------k----------------------------------------------------------------------------------------------------------------","oo0---0------oo000--------00o-----------0-4-------------4----------------------------------------------------------------------------------------------------------------"]],["HJ raise 2bb","CO",3.5,2.0,["fold","raise 6bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000iioooooo00000cooooooo0000ooooooooo0oo0ooooooooo6ooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0oooooooooooooooooooooooooooooooooooooooooooooooooooooooo","ooooo66000000oooooc0000000oooo000000000o00o000000000i000o0000000000000o0000000000000o0000000000000o0000000000000o00000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["HJ raise 2bb","BTN",3.5,2.0,["fold","call","raise 6bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000006o6cio000000iiioooo00000iooooooo06000oooooooo06oo00oooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0oooooooooooooooooooooooooooo","0000000606000000ooo0000000068oo0000000006o0o000000000i00co000000000000o0000000000000o0000000000000o000000000000000000000000000g0000000000000o0000000000000000000000000000","oooooooc0cc60ooo0006660000oig0060000000oc0o000000000o000c0000000000000000000000000000000000000000000000000000000o00000000000008000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["HJ raise 2bb","SB",3.5,1.5,["fold","raise 9bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000oooocioo00000oooooooo0000ioooooooo0io0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0oooooooooooooooooooooooooooooooooooooooooooooooooooooooo","ooooo0000c600ooooo00000000oooo600000000o60o0000000000000o0000000000000o0000000000000o0000000000000o0000000000000o00000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["HJ raise 2bb","BB",3.5,1.0,["fold","call","raise 11bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000000000000000000000000000000000000000000000000000000000000000000000000000000oo00000000000ooo000000000oooooo0000000ooooooo000000ooooooooo0000oooooooooo000ooooooooooo0","000oooooo6ooo006ooooioooioco0oo0oooooocooo0ooooooooooooo0ooooooooooooo0ooooooooc00oooooooooo6000ooooooooo000000ooooooo0000000oooooo000000000oooo0000000000oo000000000000o","ooo000000i000ooi0000600060c0o00o000000c000o0000000000000o0000000000000o00000000c000000000000i000000000000000000000000000000000000000000000000000000000000000o000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["HJ raise 2bb, BB raise 11bb","HJ",13.5,9.0,["fold","call","raise 23bb","allin"],"zzzzzzzzzzzzzzzzzzzzzq----zzzzzz-------zzzzz--------zzq-zi-------z9---z-------z-----z------q------z-------------z-------------z-------------c-------------6-------------6",["0000006coiioo00000oooo----0o0ooo-------ooo0o--------ooo-0o-------oo---0-------o-----0------o------0-------------0-------------8-------------o-------------o-------------o","00ooooic0000000o060000----604000-------000o0--------000-o0-------00---o-------0-----o------0------o-------------o-------------g-------------0-------------0-------------0","k000000006600000oi0000----i0k000-------00000--------000-00-------00---0-------0-----0------0------0-------------0-------------0-------------0-------------0-------------0","4o00000000000oo0000000----000000-------00000--------000-00-------00---0-------0-----0------0------0-------------0-------------0-------------0-------------0-------------0"]],["HJ raise 2bb, BB raise 11bb, HJ raise 23bb","BB",34.5,12.0,["fold","call","allin"],"zzz------q---zzq----9---9-i-z--z------i---z-------------z-------------z--------i------------q---------------------------------------------------------------z------------",["000------0---000----o---o-0-0--o------o---0-------------0-------------0--------o------------o---------------------------------------------------------------o------------","00c------0---60o----0---0-c-o--0------0---o-------------o-------------o--------0------------0---------------------------------------------------------------0------------","ooc------o---io0----0---0-c-0--0------0---0-------------0-------------0--------0------------0---------------------------------------------------------------0------------"]],["HJ raise 2bb, BB raise 11bb, HJ raise 23bb, BB allin","HJ",123.5,77.0,["fold","allin"],"t--------99-----zq--------q-t--------------------------------------------------------------------------------------------------------------------------------------------",["0--------oo-----oo--------o-0--------------------------------------------------------------------------------------------------------------------------------------------","o--------00-----00--------0-o--------------------------------------------------------------------------------------------------------------------------------------------"]],["HJ raise 2bb, BB raise 11bb, HJ allin","BB",111.5,89.0,["fold","allin"],"zzz------q---zzq----9---9-i-z--z------i---z-------------z-------------z--------i------------q---------------------------------------------------------------z------------",["00o------o---c0o----o---o-o-0--o------o---o-------------o-------------o--------o------------o---------------------------------------------------------------o------------","oo0------0---co0----0---0-0-o--0------0---0-------------0-------------0--------0------------0---------------------------------------------------------------0------------"]],["HJ raise 2bb, SB raise 9bb","HJ",12.0,7.0,["fold","call","raise 19bb","allin"],"zzzzzzzzzzzzzzzzzzzzzq----zzzzzz-------zzzzz--------zzq-zi-------z9---z-------z-----z------q------z-------------z-------------z-------------c-------------6-------------6",["000000ooooooo00000oooo----0c0ooo-------ooo0o--------ooo-0o-------oo---0-------o-----0------o------0-------------0-------------o-------------o-------------o-------------o","00oo600000000000000000----0c0000-------000k0--------000-c0-------00---o-------0-----o------0------o-------------o-------------0-------------0-------------0-------------0","oo00io00000006kooo0000----o0c000-------00040--------000-c0-------00---0-------0-----0------0------0-------------0-------------0-------------0-------------0-------------0","0000000000000i40000000----00c000-------00000--------000-00-------00---0-------0-----0------0------0-------------0-------------0-------------0-------------0-------------0"]],["HJ raise 2bb, SB raise 9bb, HJ raise 19bb","SB",29.0,10.0,["fold","call","allin"],"zzzzz----i9--zzzzz--------zzzz9--------z9-z-------------z-------------z-------------z-------------z-------------z--------------------------------------------------------",["00000----06--00000--------0o06o--------oo-0-------------0-------------0-------------0-------------0-------------0--------------------------------------------------------","00ooo----00--00ooo--------o0oi0--------00-o-------------o-------------o-------------o-------------o-------------o--------------------------------------------------------","oo000----oi--oo000--------00000--------00-0-------------0-------------0-------------0-------------0-------------0--------------------------------------------------------"]],["HJ raise 2bb, SB raise 9bb, HJ raise 19bb, SB allin","HJ",120.0,81.0,["fold","allin"],"zz--qz-------9tzzz--------z-i-------------6-------------i----------------------------------------------------------------------------------------------------------------",["00--oo-------00ooo--------o-0-------------0-------------0----------------------------------------------------------------------------------------------------------------","oo--00-------oo000--------0-o-------------o-------------o----------------------------------------------------------------------------------------------------------------"]],["HJ raise 2bb, SB raise 9bb, HJ allin","SB",110.0,91.0,["fold","allin"],"zzzzz----i9--zzzzz--------zzzz9--------z9-z-------------z-------------z-------------z-------------z-------------z--------------------------------------------------------",["00ooo----oo--00ooo--------oo0oo--------oo-4-------------4-------------o-------------o-------------o-------------o--------------------------------------------------------","oo000----00--oo000--------00o00--------00-k-------------k-------------0-------------0-------------0-------------0--------------------------------------------------------"]],["HJ raise 2bb, BTN raise 6bb","HJ",9.5,4.0,["fold","call","raise 16bb","allin"],"zzzzzzzzzzzzzzzzzzzzzq----zzzzzz-------zzzzz--------zzq-zi-------z9---z-------z-----z------q------z-------------z-------------z-------------c-------------6-------------6",["0000000oooooo000000ioo----00000o-------0oo00--------ooo-00-------oo---0-------o-----0------o------0-------------0-------------0-------------0-------------0-------------0","000oo6000000000o000000----0c0oo0-------o000o--------000-oo-------00---o-------0-----o------0------o-------------o-------------o-------------o-------------o-------------o","ooo00io000000ik0ooo600----oco000-------000o0--------000-00-------00---0-------0-----0------0------0-------------0-------------0-------------0-------------0-------------0","0000000000000640000000----000000-------00000--------000-00-------00---0-------0-----0------0------0-------------0-------------0-------------0-------------0-------------0"]],["HJ raise 2bb, BTN raise 6bb, HJ raise 16bb","BTN",23.5,10.0,["fold","call","allin"],"zzzzzzzi-ii9-zzz---999----zqn--9-------zi-z---------z---i-------------------------------------------------------z-------------c------------------------------------------",["00000000-006-000---ooo----000--o-------oo-0---------o---0-------------------------------------------------------0-------------0------------------------------------------","00ooooi0-ci0-00o---000----ooo--0-------00-o---------0---o-------------------------------------------------------o-------------o------------------------------------------","oo00006o-c6i-oo0---000----000--0-------00-0---------0---0-------------------------------------------------------0-------------0------------------------------------------"]],["HJ raise 2bb, BTN raise 6bb, HJ raise 16bb, BTN allin","HJ",117.5,84.0,["fold","allin"],"zzz--qz------qt-zzz9------ziz-------------z------------------------------------------------------------------------------------------------------------------------------",["00o--oo------00-oooo------oo0-------------4------------------------------------------------------------------------------------------------------------------------------","oo0--00------oo-0000------00o-------------k------------------------------------------------------------------------------------------------------------------------------"]],["HJ raise 2bb, BTN raise 6bb, HJ allin","BTN",107.5,94.0,["fold","allin"],"zzzzzzzi-ii9-zzz---999----zqn--9-------zi-z---------z---i-------------------------------------------------------z-------------c------------------------------------------",["00oooooo-ooo-i0o---ooo----oo4--o-------oo-4---------o---o-------------------------------------------------------o-------------o------------------------------------------","oo000000-000-6o0---000----00k--0-------00-k---------0---0-------------------------------------------------------0-------------0------------------------------------------"]],["HJ raise 2bb, CO raise 6bb","HJ",9.5,4.0,["fold","call","raise 16bb","allin"],"zzzzzzzzzzzzzzzzzzzzzq----zzzzzz-------zzzzz--------zzq-zi-------z9---z-------z-----z------q------z-------------z-------------z-------------c-------------6-------------6",["000000oooiooo00000iooo----00000o-------0oo00--------ooo-00-------oo---0-------o-----0------o------0-------------0-------------0-------------0-------------0-------------o","006ooo000000000o600000----0i0oo0-------o000o--------000-0o-------00---o-------0-----o------0------o-------------o-------------o-------------o-------------o-------------0","ooi0000000000080io6000----o6o000-------000o0--------000-o0-------00---0-------0-----0------0------0-------------0-------------0-------------0-------------0-------------0","0000000006000og0000000----000000-------00000--------000-00-------00---0-------0-----0------0------0-------------0-------------0-------------0-------------0-------------0"]],["HJ raise 2bb, CO raise 6bb, HJ raise 16bb","CO",23.5,10.0,["fold","call","allin"],"zzzzz99------zzzzzi-------zzzz---------z--z---------q---z-------------z-------------z-------------z-------------z--------------------------------------------------------",["0000006------00000o-------060o---------o--0---------o---0-------------0-------------0-------------0-------------0--------------------------------------------------------","00o0o00------00ooo0-------oio0---------0--o---------0---o-------------o-------------o-------------o-------------o--------------------------------------------------------","oo0o0oi------oo0000-------0000---------0--0---------0---0-------------0-------------0-------------0-------------0--------------------------------------------------------"]],["HJ raise 2bb, CO raise 6bb, HJ raise 16bb, CO allin","HJ",117.5,84.0,["fold","allin"],"zzq-----------c-qz9-------z9z-------------z-------------z----------------------------------------------------------------------------------------------------------------",["00o-----------0-ooo-------oo0-------------k-------------k----------------------------------------------------------------------------------------------------------------","oo0-----------o-000-------00o-------------4-------------4----------------------------------------------------------------------------------------------------------------"]],["HJ raise 2bb, CO raise 6bb, HJ allin","CO",107.5,94.0,["fold","allin"],"zzzzz99------zzzzzi-------zzzz---------z--z---------q---z-------------z-------------z-------------z-------------z--------------------------------------------------------",["00ooooo------i0oooo-------oo0o---------o--0---------o---4-------------o-------------o-------------o-------------o--------------------------------------------------------","oo00000------6o0000-------00o0---------0--o---------0---k-------------0-------------0-------------0-------------0--------------------------------------------------------"]],["UTG raise 2bb","HJ",3.5,2.0,["fold","raise 6bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000ooooiooo00000iooooooo000oooooooooo0oo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo4oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo","ooooo00006000ooooo60000000ooo0000000000o00o0000000000000o0000000000000o0000000000000o0000000000000k0000000000000000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["UTG raise 2bb","CO",3.5,2.0,["fold","raise 6bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["00000oooooooo00000oooooooo000oooooooooo0oo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo4oooooooooooookoooooooooooooooooooooooooooooooooooooooooooooooooooooooo","ooooo00000000ooooo00000000ooo0000000000o00o0000000000000o0000000000000o0000000000000o0000000000000k0000000000000400000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["UTG raise 2bb","BTN",3.5,2.0,["fold","call","raise 6bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["0000000io6cio000000cccoooo00000oooooooo0co00oooooooo6coo00oooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0ooooooooooooo0oooooooooooooooooooooooooooo","00066c0000000000o0000000000c4oi000000000c00o00000000cc000o000000000000o0000000000000c0000000000000g0000000000000o0000000000000o0000000000000o0000000000000000000000000000","oooiico60ic60ooo0ooccc0000ock0600000000o00o0000000006000o000000000000000000000000000c000000000000080000000000000000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["UTG raise 2bb","SB",3.5,1.5,["fold","raise 9bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["0000iiioooooo0000ioooooooo0000oooooooooiio0ooooooooooooo0ooooooooooooo0ooooooooooooo0oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo","oooo666000000oooo600000000oooo000000000660o0000000000000o0000000000000o0000000000000o000000000000000000000000000000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["UTG raise 2bb","BB",3.5,1.0,["fold","call","raise 11bb","allin"],"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",["0000000000000000000000000000000000000000000000000000000000000000000000000000000coo0000000000iooo000000000ooooooo000000oooooooo00000ooooooooo0000oooooooooo000ooooooooooo0","000oooooooooo00oi00ioiioc6oo0ooooooooooooo0ooooooooooooogoooooooooooookoooooooo000oooooooooo0000ooooooooo0000000oooooo00000000ooooo000000000oooo0000000000oo600000000000o","ooo0000000000oo06oo60660ci00o0000000000000o000000000000080000000000000400000000c0000000000006000000000000000000000000000000000000000000000000000000000000000i000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]],["UTG raise 2bb, BB raise 11bb","UTG",13.5,9.0,["fold","call","raise 23bb","allin"],"zzzzzzzzzzzzzzzzzzzq------zzzzz--------zzzzz--------zz--z--------i----z-------------z-------------z-------------z-------------i-------------6-------------6-------------6",["00000ciioiioo0000ooo------co0oo--------ooo0o--------oo--0--------o----0-------------0-------------0-------------0-------------o-------------o-------------o-------------o","00oooc000600000oc000------00o00--------000o0--------00--o--------0----o-------------o-------------o-------------o-------------0-------------0-------------0-------------0","go00000000000040c000------c0000--------00000--------00--0--------0----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0","8000006600600ok00000------00000--------00000--------00--0--------0----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0"]],["UTG raise 2bb, BB raise 11bb, UTG raise 23bb","BB",34.5,12.0,["fold","call","allin"],"zzz----------zz-9zz9-99-iq--z-------------z-------------c-------------6--------i------------9---------------------------------------------------------------q------------",["000----------00-0coo-oo-oo--0-------------0-------------0-------------0--------o------------o---------------------------------------------------------------o------------","0io----------oo-o000-00-00--o-------------o-------------o-------------o--------0------------0---------------------------------------------------------------0------------","o60----------00-0c00-00-00--0-------------0-------------0-------------0--------0------------0---------------------------------------------------------------0------------"]],["UTG raise 2bb, BB raise 11bb, UTG raise 23bb, BB allin","UTG",123.5,77.0,["fold","allin"],"nz------------6-i---------i----------------------------------------------------------------------------------------------------------------------------------------------",["00------------0-o---------o----------------------------------------------------------------------------------------------------------------------------------------------","oo------------o-0---------0----------------------------------------------------------------------------------------------------------------------------------------------"]],["UTG raise 2bb, BB raise 11bb, UTG allin","BB",111.5,89.0,["fold","allin"],"zzz----------zz-9zz9-99-iq--z-------------z-------------c-------------6--------i------------9---------------------------------------------------------------q------------",["00o----------i0-oooo-oo-oo--0-------------8-------------o-------------o--------o------------o---------------------------------------------------------------o------------","oo0----------6o-0000-00-00--o-------------g-------------0-------------0--------0------------0---------------------------------------------------------------0------------"]],["UTG raise 2bb, SB raise 9bb","UTG",12.0,7.0,["fold","call","raise 19bb","allin"],"zzzzzzzzzzzzzzzzzzzq------zzzzz--------zzzzz--------zz--z--------i----z-------------z-------------z-------------z-------------i-------------6-------------6-------------6",["00000ooooiioo000oooo------0o0oo--------ooo0o--------oo--0--------o----0-------------0-------------0-------------o-------------o-------------o-------------o-------------o","00o060000000000o0000------00c00--------000k0--------00--k--------0----o-------------o-------------o-------------0-------------0-------------0-------------0-------------0","oo0oi000000000800000------o0800--------00040--------00--4--------0----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0","0000000006600og00000------00400--------00000--------00--0--------0----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0"]],["UTG raise 2bb, SB raise 9bb, UTG raise 19bb","SB",29.0,10.0,["fold","call","allin"],"zzzz999------zzzz9--------zzzz---------99-z-------------z-------------z-------------z------------------------------------------------------------------------------------",["0000000------00000--------0o0o---------oo-0-------------0-------------0-------------0------------------------------------------------------------------------------------","00o0000------c0ooo--------o0o0---------00-o-------------o-------------o-------------o------------------------------------------------------------------------------------","oo0oooo------co000--------0000---------00-0-------------0-------------0-------------0------------------------------------------------------------------------------------"]],["UTG raise 2bb, SB raise 9bb, UTG raise 19bb, SB allin","UTG",120.0,81.0,["fold","allin"],"zz-zq---------c-----------z-c-------------6-------------6----------------------------------------------------------------------------------------------------------------",["00-oo---------0-----------o-0-------------g-------------o----------------------------------------------------------------------------------------------------------------","oo-00---------o-----------0-o-------------8-------------0----------------------------------------------------------------------------------------------------------------"]],["UTG raise 2bb, SB raise 9bb, UTG allin","SB",110.0,91.0,["fold","allin"],"zzzz999------zzzz9--------zzzz---------99-z-------------z-------------z-------------z------------------------------------------------------------------------------------",["00ooooo------00ooo--------oo0o---------oo-c-------------c-------------o-------------o------------------------------------------------------------------------------------","oo00000------oo000--------00o0---------00-c-------------c-------------0-------------0------------------------------------------------------------------------------------"]],["UTG raise 2bb, BTN raise 6bb","UTG",9.5,4.0,["fold","call","raise 16bb","allin"],"zzzzzzzzzzzzzzzzzzzq------zzzzz--------zzzzz--------zz--z--------i----z-------------z-------------z-------------z-------------i-------------6-------------6-------------6",["000000coooooo000006o------0000o--------0oo00--------oo--0--------o----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0","00ooooc00000000o0000------6o0o0--------o000o--------00--o--------0----o-------------o-------------o-------------o-------------o-------------o-------------o-------------o","oo00000000000oo0ooi0------i0o00--------000o0--------00--0--------0----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0","00000000000000000000------00000--------00000--------00--0--------0----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0"]],["UTG raise 2bb, BTN raise 6bb, UTG raise 16bb","BTN",23.5,10.0,["fold","call","allin"],"zzzqqiz9-qi9-zzz-zziii----zit-9--------z--z---------9---z---------------------------i-------------c----------------------------------------------------------------------",["00000ccc-cii-000-ooooo----0o0-o--------o--0---------o---0---------------------------0-------------0----------------------------------------------------------------------","00ooocc6-600-00o-00000----o0o-0--------0--o---------0---o---------------------------g-------------k----------------------------------------------------------------------","oo000006-666-oo0-00000----000-0--------0--0---------0---0---------------------------8-------------4----------------------------------------------------------------------"]],["UTG raise 2bb, BTN raise 6bb, UTG raise 16bb, BTN allin","UTG",117.5,84.0,["fold","allin"],"zz-----------zz-zzq-------q-z-------------z------------------------------------------------------------------------------------------------------------------------------",["00-----------60-ooo-------o-g-------------g------------------------------------------------------------------------------------------------------------------------------","oo-----------io-000-------0-8-------------8------------------------------------------------------------------------------------------------------------------------------"]],["UTG raise 2bb, CO raise 6bb","UTG",9.5,4.0,["fold","call","raise 16bb","allin"],"zzzzzzzzzzzzzzzzzzzq------zzzzz--------zzzzz--------zz--z--------i----z-------------z-------------z-------------z-------------i-------------6-------------6-------------6",["00000oooooooo00000oo------0o00o--------ooo00--------oo--0--------o----0-------------0-------------0-------------0-------------0-------------0-------------0-------------o","00ooo0000000000oc000------i00o0--------0000o--------00--4--------0----o-------------o-------------o-------------o-------------o-------------o-------------o-------------0","oi000000000000c0co00------60o00--------000o0--------00--k--------0----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0","0600000000000oc00000------00000--------00000--------00--0--------0----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0"]],["UTG raise 2bb, CO raise 6bb, UTG raise 16bb","CO",23.5,10.0,["fold","call","allin"],"zzzzz--------zzzzz--------zzz----------z--z-------------z-------------z-------------z-------------t-------------6--------------------------------------------------------",["0000c--------0000o--------0o0----------o--0-------------0-------------k-------------k-------------o-------------o--------------------------------------------------------","00ooc--------00oo0--------o0o----------0--o-------------o-------------4-------------4-------------0-------------0--------------------------------------------------------","oo000--------oo000--------000----------0--0-------------0-------------0-------------0-------------0-------------0--------------------------------------------------------"]],["UTG raise 2bb, CO raise 6bb, UTG raise 16bb, CO allin","UTG",117.5,84.0,["fold","allin"],"zq------------i-iz--------9-z-------------z-------------t----------------------------------------------------------------------------------------------------------------",["0c------------0-oo--------o-g-------------g-------------o----------------------------------------------------------------------------------------------------------------","oc------------o-00--------0-8-------------8-------------0----------------------------------------------------------------------------------------------------------------"]],["UTG raise 2bb, CO raise 6bb, UTG allin","CO",107.5,94.0,["fold","allin"],"zzzzz--------zzzzz--------zzz----------z--z-------------z-------------z-------------z-------------t-------------6--------------------------------------------------------",["00ooo--------o0ooo--------oo0----------o--0-------------0-------------k-------------k-------------k-------------o--------------------------------------------------------","oo000--------0o000--------00o----------0--o-------------o-------------4-------------4-------------4-------------0--------------------------------------------------------"]],["UTG raise 2bb, HJ raise 6bb","UTG",9.5,4.0,["fold","call","raise 16bb","allin"],"zzzzzzzzzzzzzzzzzzzq------zzzzz--------zzzzz--------zz--z--------i----z-------------z-------------z-------------z-------------i-------------6-------------6-------------6",["00000ooooiooo00000oo------0o0io--------ooo00--------oo--0--------o----0-------------0-------------0-------------0-------------0-------------0-------------0-------------o","00ooo0000000000oi000------o0060--------0000o--------00--k--------0----o-------------o-------------o-------------o-------------o-------------o-------------o-------------0","oo000000000006c06o00------00o00--------000o0--------00--4--------0----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0","0000000006000ic00000------00000--------00000--------00--0--------0----0-------------0-------------0-------------0-------------0-------------0-------------0-------------0"]],["UTG raise 2bb, HJ raise 6bb, UTG raise 16bb","HJ",23.5,10.0,["fold","call","allin"],"zzzzz----9---zzzzz9-------zzz----------z--z-------------z-------------z-------------z-------------t----------------------------------------------------------------------",["0000i----0---000ooo-------oo0----------o--0-------------0-------------c-------------c-------------c----------------------------------------------------------------------","00oo6----0---c4o000-------00o----------0--o-------------o-------------c-------------c-------------c----------------------------------------------------------------------","oo000----o---ck0000-------000----------0--0-------------0-------------0-------------0-------------0----------------------------------------------------------------------"]],["UTG raise 2bb, HJ raise 6bb, UTG raise 16bb, HJ allin","UTG",117.5,84.0,["fold","allin"],"zz-----------9i-9z----------z-------------z-------------6----------------------------------------------------------------------------------------------------------------",["00-----------o0-oo----------c-------------o-------------o----------------------------------------------------------------------------------------------------------------","oo-----------0o-00----------c-------------0-------------0----------------------------------------------------------------------------------------------------------------"]],["UTG raise 2bb, HJ raise 6bb, UTG allin","HJ",107.5,94.0,["fold","allin"],"zzzzz----9---zzzzz9-------zzz----------z--z-------------z-------------z-------------z-------------t----------------------------------------------------------------------",["00ooo----o---o0oooo-------oo4----------o--4-------------4-------------o-------------o-------------o----------------------------------------------------------------------","oo000----0---0o0000-------00k----------0--k-------------k-------------0-------------0-------------0----------------------------------------------------------------------"]]];
+var NASH={"jam":{"4":{"UTG":"9999999999999999999900000099999900000009999990000000999099000000090000920000009000009000000900000090000090000000900009000000009000900000000090090000000000909000000000009","HJ":"9999999999999999999999900099999990000009999991000000999999900000099000990000009000009000000900000090000090000000900009000000009000900000000090090000000000909000000000009","CO":"9999999999999999999999999999999991000009999999000000999999900000099900990000009900009000000990000090000090000000900009000000009000900000000090090000000000909000000000009","BTN":"9999999999999999999999999999999999999009999999900000999999990000099999990000009990009000000990000090000099000000900009900000009000990000000090099000000000909000000000009","SB":"9999999999999999999999999999999999999999999999999999999999999999999999999999909999999999900999999999990099999999999009999900009920999900000090099990000000909999000000009"},"6":{"UTG":"9999999999999999999000000099999900000009969990000000900099200000090000990000009000009000000900000090000000000000900000000000009000000000000090000000000000900000000000009","HJ":"9999999999999999999000000099999900000009999990000000990599900000090000990000009000009000000900000090000090000000900009000000009000900000000090000000000000900000000000009","CO":"9999999999999999999999000099999990000009999999000000999999900000090000990000009000009900000900000090000090000000900009000000009000900000000090090000000000909000000000009","BTN":"9999999999999999999999999999999999900009999999900000999999990000099900999000009900009990000990000099000099000000900009000000009000900000000090090000000000909000000000009","SB":"9999999999999999999999999999999999999999999999999999999999999999999999999990009999999999900999999999990099990099999009999000009990999000000099099900000000909990000000009"},"8":{"UTG":"9999999999900999999000000099999900000009909990000000900099000000090000990000000000009000000000000090000000000000900000000000009000000000000090000000000000900000000000005","HJ":"9999999999999999999000000099999900000009999994000000900099900000090000990000009000009000000700000090000000000000900000000000009000000000000090000000000000900000000000009","CO":"9999999999999999999900000099999900000009999999000000991999900000090000990000009000009900000900000090000090000000900009000000009000900000000090090000000000900000000000009","BTN":"9999999999999999999999990099999990000009999999000000999999990000099000999000009000009990000900000099000090000000960009000000009000900000000090090000000000909000000000009","SB":"9999999999999999999999999999999999999999999999999999999999999990099999999990009999999999500999999999990099900009999009990000009990990000000090099000000000909900000000009"},"10":{"UTG":"9999999904000999999000000099999900000009409990000000900099000000000000900000000000009000000000000090000000000000900000000000009000000000000090000000000000100000000000000","HJ":"9999999999900999999000000099999900000009999990000000900099000000090000990000000000009000000000000090000000000000900000000000009000000000000090000000000000900000000000009","CO":"9999999999999999999000000099999900000009999999000000930999900000090000990000009000009700000900000090000000000000900009000000009000000000000090000000000000900000000000009","BTN":"9999999999999999999999900099999990000009999999000000999999990000090000999000009000009910000900000099000090000000900009000000009000900000000090090000000000909000000000009","SB":"9999999999999999999999999999999999999999999999999990999999999990099999999990009999999999900999009999990099000009999009900000009990990000000094099000000000909900000000009"},"12":{"UTG":"9999999006000999999000000099999900000009009990000000100099000000000000900000000000009000000000000090000000000000900000000000009000000000000030000000000000000000000000000","HJ":"9999999909000999999000000099999900000009909990000000900099000000000000900000000000009000000000000090000000000000900000000000009000000000000090000000000000900000000000000","CO":"9999999999999999999000000099999900000009999999000000900999900000090000990000009000009000000000000090000000000000900000000000009000000000000090000000000000900000000000009","BTN":"9999999999999999999990000099999990000009999999000000999999900000090000999000009000009900000900000096000090000000900009000000009000900000000090090000000000909000000000009","SB":"9999999999999999999999999999999999999999999999999900999999999000099999999990009999999999000990000999990099000000999009900000009990990000000090099000000000909000000000009"}},"call":{"4":{"UTG|HJ":"9999999999999999999000000099999000000009909000000000980090000000090000900000009000009000000900000090000090000000900009000000009000900000000090000000000000900000000000009","UTG|CO":"9999999999999999999000000099999000000009909000000000970090000000090000900000009000009000000900000090000090000000900009000000009000900000000090000000000000900000000000009","UTG|BTN":"9999999999999999999000000099999000000009909000000000960090000000090000900000009000009000000900000090000090000000900009000000009000900000000090000000000000900000000000009","UTG|SB":"9999999999999999999999900099999900000009999999000000999299900000099000999000009000009900000900000099000090000000900009000000009000900000000090090000000000909000000000009","UTG|BB":"9999999999999999999999999999999999999909999999999900999999999000099999999990009999999999000990009999990099000009999009900000009990900000000090090000000000909000000000009","HJ|CO":"9999999999999999999900000099999000000009999900000000990090000000090000900000009000009000000900000090000090000000900009000000009000900000000090090000000000909000000000009","HJ|BTN":"9999999999999999999900000099999000000009999900000000990090000000090000900000009000009000000900000090000090000000900009000000009000900000000090090000000000909000000000009","HJ|SB":"9999999999999999999999999099999990000009999999000000999999900000099000990000009500009900000900000099000090000000900009000000009000900000000090090000000000909000000000009","HJ|BB":"9999999999999999999999999999999999999999999999999990999999999900099999999990009999999999000990000999990099000009999009900000009990990000000090099000000000909000000000009","CO|BTN":"9999999999999999999990000099999900000009999900000000999090000000099000900000009000009000000900000090000090000000900009000000009000900000000090090000000000909000000000009","CO|SB":"9999999999999999999999999999999990000009999999000000999999900000099200990000009900009900000990000099000090000000900009000000009000900000000090090000000000909000000000009","CO|BB":"9999999999999999999999999999999999999999999999999990999999999990099999999990009999999999900990008999990099000009999909900000009990990000000099099000000000909900000000009","BTN|SB":"9999999999999999999999999999999999999009999999900000999999990000099999999000009990009900000990000099000099000000990009900000009000990000000090099000000000909000000000009","BTN|BB":"9999999999999999999999999999999999999999999999999999999999999999099999999990009999999999900999999999990099900099999909990000099990999000000099099000000000909900000000009","SB|BB":"9999999999999999999999999999999999999999999999999999999999999999999999999999909999999999900999999999990099999999999009999400009990999900000090099990000000909999000000009"},"6":{"UTG|HJ":"9999999900000999900000000099900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000900000000000000","UTG|CO":"9999999900000999900000000099900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000900000000000000","UTG|BTN":"9999999900000999900000000099900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000900000000000000","UTG|SB":"9999999999900999990000000099998000000009609000000000900090000000090000900000009000009000000000000090000000000000900000000000009000000000000090000000000000900000000000009","UTG|BB":"9999999999999999999000000099999000000009999900000000990090000000090000900000009000009000000900000090000000000000900009000000009000000000000090000000000000900000000000009","HJ|CO":"9999999999900999990000000099910000000009009000000000900090000000090000900000009000009000000900000090000000000000900000000000009000000000000090000000000000900000000000000","HJ|BTN":"9999999999900999990000000099920000000009009000000000900090000000090000900000009000009000000900000090000000000000900000000000009000000000000090000000000000900000000000000","HJ|SB":"9999999999999999990000000099999000000009909900000000900090000000090000900000009000009000000900000090000090000000900009000000009000000000000090000000000000900000000000009","HJ|BB":"9999999999999999999990000099999900000009999990000000990099000000090000900000009000009000000900000090000090000000900009000000009000900000000090090000000000909000000000009","CO|BTN":"9999999999999999990000000099999000000009909000000000900090000000090000900000009000009000000900000090000090000000900009000000009000000000000090000000000000900000000000009","CO|SB":"9999999999999999999900000099999000000009999900000000990090000000090000900000009000009000000900000090000090000000900009000000009000900000000090090000000000900000000000009","CO|BB":"9999999999999999999999990099999990000009999990000000999999000000099000990000009000009000000900000090000090000000900009000000009000900000000090090000000000909000000000009","BTN|SB":"9999999999999999999999900099999900000009999990000000999099000000099000900000009900009000000900000090000090000000900009000000009000900000000090090000000000909000000000009","BTN|BB":"9999999999999999999999999999999990000009999999000000999999900000099900990000009900009000000990000090000099000000900009000000009000900000000090090000000000909000000000009","SB|BB":"9999999999999999999999999999999999999999999999999900999999999000099999999000009999999900000999900090000099900000900009990000009000999000000090099000000000909900000000009"},"8":{"UTG|HJ":"9999990000000999000000000090900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000009000000000000000000000000000000000000000000","UTG|CO":"9999990000000999000000000090900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000009000000000000000000000000000000000000000000","UTG|BTN":"9999990000000999000000000090900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000009000000000000000000000000000000000000000000","UTG|SB":"9999999000000999900000000099900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000009000000000000090000000000000000000000000000","UTG|BB":"9999999999000999940000000099900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000700000000000000","HJ|CO":"9999999000000999900000000097900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000000000000000000","HJ|BTN":"9999999000000999900000000098900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000000000000000000","HJ|SB":"9999999900000999990000000099900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000900000000000000","HJ|BB":"9999999999990999990000000099999000000009909000000000900090000000090000900000009000009000000000000090000000000000900000000000009000000000000090000000000000900000000000008","CO|BTN":"9999999999000999990000000099900000000009009000000000900090000000090000900000009000009000000000000090000000000000900000000000009000000000000090000000000000900000000000000","CO|SB":"9999999999999999990000000099999000000009909000000000900090000000090000900000009000009000000900000090000000000000900000000000009000000000000090000000000000900000000000009","CO|BB":"9999999999999999999000000099999000000009999900000000990090000000090000900000009000009000000900000090000090000000900009000000009000100000000090000000000000900000000000009","BTN|SB":"9999999999999999999000000099999000000009959900000000990090000000090000900000009000009000000900000090000090000000900009000000009000900000000090090000000000900000000000009","BTN|BB":"9999999999999999999990000099999900000009999900000000999090000000099000900000009000009000000900000090000090000000900009000000009000900000000090090000000000909000000000009","SB|BB":"9999999999999999999999999999999999999009999999900000999999900000099999990000009990009000000994000090000099000000900009900000009000990000000090099000000000909900000000009"},"10":{"UTG|HJ":"9999900000000994000000000090900000000009009000000000000090000000000000900000000000009000000000000090000000000000800000000000000000000000000000000000000000000000000000000","UTG|CO":"9999900000000994000000000090900000000009009000000000000090000000000000900000000000009000000000000090000000000000700000000000000000000000000000000000000000000000000000000","UTG|BTN":"9999900000000996000000000090900000000009009000000000000090000000000000900000000000009000000000000090000000000000600000000000000000000000000000000000000000000000000000000","UTG|SB":"9999900000000999000000000090900000000009009000000000200090000000000000900000000000009000000000000090000000000000900000000000000000000000000000000000000000000000000000000","UTG|BB":"9999990000000999000000000090900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000009000000000000000000000000000000000000000000","HJ|CO":"9999990000000999000000000090900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000009000000000000000000000000000000000000000000","HJ|BTN":"9999990000000999000000000090900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000009000000000000000000000000000000000000000000","HJ|SB":"9999999000000999900000000099900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000009000000000000090000000000000000000000000000","HJ|BB":"9999999900000999900000000099900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000000000000000000","CO|BTN":"9999999400000999900000000099900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000000000000000000","CO|SB":"9999999909000999990000000099900000000009009000000000900090000000090000900000009000009000000000000090000000000000900000000000009000000000000090000000000000500000000000000","CO|BB":"9999999999990999990000000099999000000009909000000000900090000000090000900000009000009000000000000090000000000000900000000000009000000000000090000000000000900000000000000","BTN|SB":"9999999999999999990000000099990000000009909000000000900090000000090000900000009000009000000900000090000090000000900000000000009000000000000090000000000000900000000000000","BTN|BB":"9999999999999999999000000099999000000009999400000000990090000000090000900000009000009000000900000090000090000000900009000000009000900000000090000000000000900000000000009","SB|BB":"9999999999999999999999999999999999300009999999000000999999000000099900900000009900009000000990000090000099000000900009900000009000900000000090090000000000909000000000009"},"12":{"UTG|HJ":"9999100000000990000000000090900000000000009000000000000090000000000000900000000000009000000000000080000000000000000000000000000000000000000000000000000000000000000000000","UTG|CO":"9999200000000990000000000090900000000000009000000000000090000000000000900000000000009000000000000080000000000000000000000000000000000000000000000000000000000000000000000","UTG|BTN":"9999200000000990000000000090900000000001009000000000000090000000000000900000000000009000000000000070000000000000000000000000000000000000000000000000000000000000000000000","UTG|SB":"9999900000000998000000000090900000000009009000000000000090000000000000900000000000009000000000000090000000000000000000000000000000000000000000000000000000000000000000000","UTG|BB":"9999900000000999000000000090900000000009009000000000000090000000000000900000000000009000000000000090000000000000000000000000000000000000000000000000000000000000000000000","HJ|CO":"9999900000000999000000000090900000000009009000000000000090000000000000900000000000009000000000000090000000000000900000000000000000000000000000000000000000000000000000000","HJ|BTN":"9999900000000999000000000090900000000009009000000000000090000000000000900000000000009000000000000090000000000000900000000000000000000000000000000000000000000000000000000","HJ|SB":"9999900000000999000000000090900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000000000000000000000000000000000000000000000000","HJ|BB":"9999990000000999000000000090900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000009000000000000000000000000000000000000000000","CO|BTN":"9999999000000999900000000090900000000009009000000000900090000000000000900000000000009000000000000090000000000000900000000000009000000000000000000000000000000000000000000","CO|SB":"9999999000000999900000000099900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000000000000000000","CO|BB":"9999999900000999990000000099900000000009009000000000900090000000090000900000000000009000000000000090000000000000900000000000009000000000000090000000000000000000000000000","BTN|SB":"9999999999990999990000000099990000000009909000000000900090000000090000900000009000009000000900000090000000000000900000000000009000000000000090000000000000900000000000000","BTN|BB":"9999999999999999990000000099999000000009909000000000900090000000090000900000009000009000000900000090000020000000900000000000009000000000000090000000000000900000000000009","SB|BB":"9999999999999999999999990099999990000009999990000000999990000000099000900000009900009000000990000090000090000000900009000000009000900000000090090000000000909000000000009"}}};
+
+// Карты: 0..51. Ранг c>>2 (0 = двойка, 12 = туз), масть c&3 (0♠ 1♥ 2♦ 3♣).
+var RANKS = '23456789TJQKA', SUITS = 'shdc';
+function card(s){ return RANKS.indexOf(s[0]) * 4 + SUITS.indexOf(s[1]); }
+function rankOf(c){ return c >> 2; }
+function suitOf(c){ return c & 3; }
+
+function straightHigh(mask){
+  for (var h = 12; h >= 4; h--) { var m = 31 << (h - 4); if ((mask & m) === m) return h; }
+  return (mask & 4111) === 4111 ? 3 : -1; // A2345
+}
+
+var _rc = new Int8Array(13), _sc = new Int8Array(4), _sm = new Int32Array(4);
+// Сила руки из n карт (2..7). Старшие биты: категория 0..8, ниже пять полубайтов кикеров.
+function evalHand(cards, n){
+  var i, r, s; _rc.fill(0); _sc.fill(0); _sm.fill(0);
+  var mask = 0;
+  for (i = 0; i < n; i++) { r = cards[i] >> 2; s = cards[i] & 3; _rc[r]++; _sc[s]++; _sm[s] |= 1 << r; mask |= 1 << r; }
+  var fs = -1; for (s = 0; s < 4; s++) if (_sc[s] >= 5) fs = s;
+  if (fs >= 0) { var sf = straightHigh(_sm[fs]); if (sf >= 0) return (8 << 20) | (sf << 16); }
+  var q = -1, t1 = -1, t2 = -1, p1 = -1, p2 = -1, p3 = -1;
+  for (r = 12; r >= 0; r--) {
+    var k = _rc[r];
+    if (k === 4) q = r;
+    else if (k === 3) { if (t1 < 0) t1 = r; else t2 = r; }
+    else if (k === 2) { if (p1 < 0) p1 = r; else if (p2 < 0) p2 = r; else p3 = r; }
+  }
+  function kick(ex1, ex2, count, m){
+    var out = 0, got = 0;
+    for (var x = 12; x >= 0 && got < count; x--) if (x !== ex1 && x !== ex2 && (m >> x & 1)) { out = out << 4 | x; got++; }
+    return out << (4 * (count - got));
+  }
+  if (q >= 0) return (7 << 20) | (q << 16) | (kick(q, -1, 1, mask) << 12);
+  if (t1 >= 0 && (t2 >= 0 || p1 >= 0)) { var pr = t2 > p1 ? t2 : p1; return (6 << 20) | (t1 << 16) | (pr << 12); }
+  if (fs >= 0) return (5 << 20) | kick(-1, -1, 5, _sm[fs]);
+  var st = straightHigh(mask);
+  if (st >= 0) return (4 << 20) | (st << 16);
+  if (t1 >= 0) return (3 << 20) | (t1 << 16) | (kick(t1, -1, 2, mask) << 8);
+  if (p2 >= 0) return (2 << 20) | (p1 << 16) | (p2 << 12) | (kick(p1, p2, 1, mask) << 8);
+  if (p1 >= 0) return (1 << 20) | (p1 << 16) | (kick(p1, -1, 3, mask) << 4);
+  return kick(-1, -1, 5, mask);
+}
+function catOf(score){ return score >> 20; }
+
+// ---- Стартовые руки ----
+function handCode(a, b){
+  var ra = a >> 2, rb = b >> 2;
+  if (ra < rb) { var t = ra; ra = rb; rb = t; }
+  if (ra === rb) return RANKS[ra] + RANKS[rb];
+  return RANKS[ra] + RANKS[rb] + ((a & 3) === (b & 3) ? 's' : 'o');
+}
+function allCodes(){
+  var out = [];
+  for (var i = 12; i >= 0; i--) for (var j = 12; j >= 0; j--) {
+    if (i === j) out.push(RANKS[i] + RANKS[j]);
+    else if (i > j) out.push(RANKS[i] + RANKS[j] + 's');
+    else out.push(RANKS[j] + RANKS[i] + 'o');
+  }
+  return out; // строки матрицы 13×13: над диагональю одномастные, под ней разномастные
+}
+function parseRange(str){
+  var set = {};
+  str.split(',').forEach(function(tok){
+    tok = tok.trim(); if (!tok) return;
+    var plus = tok[tok.length - 1] === '+'; if (plus) tok = tok.slice(0, -1);
+    var dash = tok.indexOf('-'), a, b, ra, rb, x, kind;
+    if (dash > 0) {
+      a = tok.slice(0, dash); b = tok.slice(dash + 1);
+      if (a[0] === a[1]) { ra = RANKS.indexOf(a[0]); rb = RANKS.indexOf(b[0]); for (x = rb; x <= ra; x++) set[RANKS[x] + RANKS[x]] = 1; return; }
+      kind = a[2]; ra = RANKS.indexOf(a[1]); rb = RANKS.indexOf(b[1]);
+      for (x = rb; x <= ra; x++) set[a[0] + RANKS[x] + kind] = 1;
+      return;
+    }
+    if (tok[0] === tok[1]) {
+      ra = RANKS.indexOf(tok[0]);
+      if (plus) for (x = ra; x <= 12; x++) set[RANKS[x] + RANKS[x]] = 1; else set[tok] = 1;
+      return;
+    }
+    if (plus) {
+      var hi = RANKS.indexOf(tok[0]); kind = tok[2];
+      for (x = RANKS.indexOf(tok[1]); x < hi; x++) set[tok[0] + RANKS[x] + kind] = 1;
+    } else set[tok] = 1;
+  });
+  return set;
+}
+
+// Упрощённые таблицы до флопа. EP ранняя, MP средняя, CO катофф, BTN баттон, SB малый блайнд, BB большой блайнд.
+var CHART = {
+  open: {
+    EP: '77+,ATs+,A5s,KTs+,QTs+,JTs,T9s,AJo+,KQo',
+    MP: '55+,A8s+,A5s-A3s,K9s+,Q9s+,J9s+,T9s,98s,ATo+,KJo+,QJo',
+    CO: '33+,A2s+,K7s+,Q8s+,J8s+,T8s+,97s+,87s,76s,65s,A9o+,KTo+,QTo+,JTo',
+    BTN:'22+,A2s+,K2s+,Q4s+,J6s+,T6s+,96s+,85s+,75s+,64s+,54s,A2o+,K8o+,Q9o+,J9o+,T9o,98o',
+    SB: '22+,A2s+,K4s+,Q6s+,J7s+,T7s+,97s+,86s+,76s,65s,54s,A5o+,K9o+,Q9o+,J9o+,T9o',
+    BB: '99+,AJs+,KQs,AQo+'
+  },
+  threeBet: {
+    EP: 'QQ+,AKs,AKo',
+    MP: 'QQ+,AKs,AKo',
+    CO: 'JJ+,AQs+,AKo,A5s',
+    BTN:'JJ+,AQs+,AKo,A5s,A4s',
+    SB: 'JJ+,AQs+,AKo,A5s',
+    BB: 'QQ+,AKs,AKo,A5s,A4s'
+  },
+  callRaise: {
+    EP: 'JJ-88,AJs+,KQs,AQo',
+    MP: 'JJ-77,AJs+,KQs,QJs,JTs,AQo',
+    CO: 'TT-66,ATs+,KJs+,QJs,JTs,T9s,AQo',
+    BTN:'TT-22,A9s+,KTs+,QTs+,JTs,T9s,98s,87s,76s,AQo,AJo,KQo',
+    SB: 'TT-77,AJs+,KJs+,QJs,AQo',
+    BB: 'JJ-22,A2s+,K6s+,Q8s+,J8s+,T8s+,97s+,86s+,75s+,65s,54s,ATo+,KTo+,QTo+,JTo'
+  },
+  fourBet: 'KK+,AKs,AKo',
+  callThreeBet: 'QQ-99,AJs+,KQs,AQo',
+  push: {
+    EP: '66+,A8s+,KTs+,QJs,ATo+,KQo',
+    MP: '55+,A5s+,K9s+,QTs+,JTs,A9o+,KJo+',
+    CO: '33+,A2s+,K7s+,Q9s+,J9s+,T9s,A7o+,KTo+,QJo',
+    BTN:'22+,A2s+,K3s+,Q7s+,J8s+,T8s+,98s,87s,A2o+,K9o+,QTo+,JTo',
+    SB: '22+,A2s+,K2s+,Q4s+,J7s+,T7s+,97s+,87s,76s,A2o+,K7o+,Q9o+,J9o+,T9o',
+    BB: '99+,AJs+,KQs,AQo+'
+  },
+  pushOverRaise: '88+,ATs+,KQs,AJo+',
+  pushOverThreeBet: 'TT+,AQs+,AKo'
+};
+var _parsed = {};
+function R(str){ return _parsed[str] || (_parsed[str] = parseRange(str)); }
+
+var ORDER = 'AA KK QQ JJ TT AKs 99 AKo AQs 88 AJs AQo ATs AJo 77 ATo A9s 66 KQs A8s A9o KJs 55 A7s KQo A8o KTs A5s A6s KJo A4s A7o QJs 44 A3s K9s KTo A2s A5o A6o QTs A4o 33 QJo K8s A3o JTs K9o A2o Q9s K7s QTo K6s 22 J9s K5s Q8s K8o K4s JTo T9s J8s K3s Q9o K2s K7o Q7s T8s 98s Q6s K6o J9o Q5s K5o J7s Q8o K4o T9o T7s Q4s 97s 87s Q3s J8o K3o Q2s J6s K2o T8o J5s Q7o 96s T6s 98o Q6o J4s 86s Q5o 76s J7o J3s T5s 95s T7o J2s Q4o 65s 97o 85s Q3o T4s 87o 75s Q2o J6o T3s J5o T2s T6o 54s 96o 94s 93s J4o 84s 64s 86o 74s 92s 76o J3o 53s T5o 95o J2o 65o 73s 82s 43s 83s T4o 63s 85o 75o T3o 52s T2o 62s 54o 94o 42s 72s 84o 93o 64o 32s 74o 92o 53o 63o 73o 43o 82o 83o 52o 62o 42o 72o 32o'.split(' ');
+function rangeTop(pct){ // множество лучших рук, занимающих pct долю из 1326 комбинаций
+  var set = {}, got = 0, lim = 1326 * Math.min(1, pct);
+  for (var i = 0; i < ORDER.length; i++) {
+    var h = ORDER[i], w = h.length === 2 ? 6 : h[2] === 's' ? 4 : 12;
+    if (got >= lim) break;
+    set[h] = 1; got += w;
+  }
+  return set;
+}
+
+// ---- Что соперник держит с учётом ставки ----
+function hasDraw(a, b, board){
+  var n = board.length; if (n >= 5) return false;
+  var sc = [0,0,0,0], i, mask = 0;
+  for (i = 0; i < n; i++) { sc[board[i] & 3]++; mask |= 1 << (board[i] >> 2); }
+  if (sc[a & 3] + 1 + ((b & 3) === (a & 3) ? 1 : 0) === 4) return true;
+  if (sc[b & 3] + 1 + ((b & 3) === (a & 3) ? 1 : 0) === 4) return true;
+  var full = mask | 1 << (a >> 2) | 1 << (b >> 2);
+  for (var h = 11; h >= 3; h--) { var m = 15 << (h - 3); if ((full & m) === m && (mask & m) !== m) return true; }
+  return false;
+}
+// 3 сильная готовая рука, 2 средняя пара, 1 дро, 0 ничего
+function classify(a, b, board){
+  var n = board.length, tmp = [a, b], i, top = 0;
+  for (i = 0; i < n; i++) { tmp.push(board[i]); if ((board[i] >> 2) > top) top = board[i] >> 2; }
+  var full = catOf(evalHand(tmp, n + 2)), bc = catOf(evalHand(board, n));
+  if (full > bc) {
+    if (full >= 3) return 3;
+    if (full === 2 && bc === 0) return 3;
+    var ra = a >> 2, rb = b >> 2;
+    if (ra === rb) return ra > top ? 3 : 2;
+    var hitTop = false;
+    for (i = 0; i < n; i++) { var r = board[i] >> 2; if (r === top && (r === ra || r === rb)) hitTop = true; }
+    return hitTop ? 3 : 2;
+  }
+  return hasDraw(a, b, board) ? 1 : 0;
+}
+var AIR = { tight: 0.05, normal: 0.12, loose: 0.25 };
+function betWeight(cls, ratio, style, river){
+  if (cls === 3) return ratio >= 1 ? 0.75 : 1;
+  if (cls === 2) return ratio < 0.4 ? 0.7 : ratio < 0.8 ? 0.4 : 0.2;
+  if (cls === 1 && !river) return ratio < 0.8 ? 0.7 : 0.4;
+  return AIR[style] * (ratio >= 1 ? 0.7 : 1);
+}
+
+// ---- Симуляция ----
+function buildCombos(dead, rangeSet, weightFn){
+  var used = new Uint8Array(52), i, j, list = [], cum = [], total = 0;
+  for (i = 0; i < dead.length; i++) used[dead[i]] = 1;
+  for (i = 0; i < 52; i++) { if (used[i]) continue;
+    for (j = i + 1; j < 52; j++) { if (used[j]) continue;
+      var rw = rangeSet ? rangeSet[handCode(i, j)] : 1;
+      if (!rw) continue;
+      var w = rw * (weightFn ? weightFn(i, j) : 1);
+      if (w <= 0) continue;
+      total += w; list.push(i, j); cum.push(total);
+    }
+  }
+  return { list: list, cum: cum, total: total };
+}
+function rng(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hashStr(s){ var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h; }
+// Создаёт симуляцию: run(k) добавляет k раздач, value() даёт текущий шанс.
+function makeSim(hero, board, sources, seed){
+  var random = rng(seed), stamp = new Int32Array(52), turn = 0;
+  var fixed = hero.concat(board), deck = [], i;
+  var dead = new Uint8Array(52); for (i = 0; i < fixed.length; i++) dead[fixed[i]] = 1;
+  for (i = 0; i < 52; i++) if (!dead[i]) deck.push(i);
+  var need = 5 - board.length, n = sources.length, opp = new Int32Array(n * 2);
+  var hb = new Int32Array(7), ob = new Int32Array(7), runout = new Int32Array(5);
+  for (i = 0; i < board.length; i++) { hb[i + 2] = board[i]; ob[i + 2] = board[i]; }
+  hb[0] = hero[0]; hb[1] = hero[1];
+  var share = 0, played = 0;
+  function pick(src){
+    var cum = src.cum, x = random() * src.total, lo = 0, hi = cum.length - 1;
+    while (lo < hi) { var mid = (lo + hi) >> 1; if (cum[mid] > x) hi = mid; else lo = mid + 1; }
+    return lo;
+  }
+  function run(k){
+    for (var it = 0; it < k; it++) {
+      turn++;
+      var ok = true, o, tries, a, b;
+      for (o = 0; o < n && ok; o++) {
+        var src = sources[o]; ok = false;
+        for (tries = 0; tries < 80; tries++) {
+          var idx = pick(src); a = src.list[idx * 2]; b = src.list[idx * 2 + 1];
+          if (stamp[a] !== turn && stamp[b] !== turn) { stamp[a] = turn; stamp[b] = turn; opp[o * 2] = a; opp[o * 2 + 1] = b; ok = true; break; }
+        }
+      }
+      if (!ok) continue;
+      for (var d = 0; d < need; d++) {
+        var c; do { c = deck[random() * deck.length | 0]; } while (stamp[c] === turn);
+        stamp[c] = turn; runout[d] = c;
+        hb[2 + board.length + d] = c; ob[2 + board.length + d] = c;
+      }
+      var hs = evalHand(hb, 7), ties = 0, lost = false;
+      for (o = 0; o < n; o++) {
+        ob[0] = opp[o * 2]; ob[1] = opp[o * 2 + 1];
+        var os = evalHand(ob, 7);
+        if (os > hs) { lost = true; break; }
+        if (os === hs) ties++;
+      }
+      played++;
+      if (!lost) share += 1 / (ties + 1);
+    }
+  }
+  return { run: run, value: function(){ return played ? share / played : 0; }, played: function(){ return played; } };
+}
+
+// ---- Рука и дро игрока ----
+var GEN = ['двоек','троек','четвёрок','пятёрок','шестёрок','семёрок','восьмёрок','девяток','десяток','валетов','дам','королей','тузов'];
+var CAT_NAME = ['Старшая карта','Пара','Две пары','Тройка','Стрит','Флеш','Фулл-хаус','Каре','Стрит-флеш'];
+function describeHand(hole, board){
+  var cards = hole.concat(board), n = cards.length;
+  var score = evalHand(cards, n), cat = catOf(score), bc = catOf(evalHand(board, board.length));
+  var name = CAT_NAME[cat];
+  if (cat === 1) name = 'Пара ' + GEN[(score >> 16) & 15];
+  if (cat === 3 && (hole[0] >> 2) === (hole[1] >> 2) && (hole[0] >> 2) === ((score >> 16) & 15)) name = 'Сет ' + GEN[(score >> 16) & 15];
+  if (cat === bc && cat > 0) name += ' на столе';
+  var res = { cat: cat, name: name, outs: 0, draw: '' };
+  if (board.length >= 5 || cat >= 4) return res;
+  var seen = new Uint8Array(52), i, fl = 0, st = 0;
+  for (i = 0; i < n; i++) seen[cards[i]] = 1;
+  var c7 = cards.slice(), b2 = board.slice();
+  for (var c = 0; c < 52; c++) {
+    if (seen[c]) continue;
+    c7[n] = c; b2[board.length] = c;
+    var nc = catOf(evalHand(c7, n + 1)), nb = catOf(evalHand(b2, board.length + 1));
+    if (nc === 4 && nb < 4) st++;
+    else if (nc === 5 && nb < 5) fl++;
+    else if (nc === 8 && nb < 8) fl++;
+  }
+  res.outs = fl + st;
+  var parts = [];
+  if (fl >= 7) parts.push('флеш-дро');
+  if (st >= 6) parts.push('двусторонний стрит-дро'); else if (st >= 3) parts.push('гатшот');
+  res.draw = parts.join(' + ');
+  if (!res.draw) res.outs = 0;
+  return res;
+}
+
+// ---- Совет ----
+function num(v){ return Math.round(v); }
+function fairShare(n){ return 1 / (n + 1); }
+function opponentSources(s, hole, board){
+  var pre = board.length === 0, base;
+  var mult = { tight: 0.7, normal: 1, loose: 1.5 }[s.style];
+  var callAmt = s.call || 0, pot = s.pot || 0, bb = s.bb || 0;
+  if (s.spot === 'five') base = 0.03;
+  else if (s.spot === 'four') base = 0.04;
+  else if (s.spot === 'three') base = pre ? 0.06 : 0.08;
+  else if (s.spot === 'raise') base = pre ? 0.2 : 0.24;
+  else if (pre) base = 0.4;
+  else {
+    var before = pot - callAmt;
+    base = (bb && before && before / bb < (s.opp + 1) * 1.6) ? 0.6 : 0.32;
+  }
+  var known = s.style === 'normal' && !isShort(s) ? villainWeights(s) : null;
+  var rangeSet = known || rangeTop(base * mult), dead = hole.concat(board);
+  var plain = buildCombos(dead, rangeSet, null);
+  if (!plain.total) plain = buildCombos(dead, null, null);
+  var sources = [];
+  var betting = null;
+  if (!pre && callAmt > 0) {
+    var ratio = callAmt / Math.max(1, pot - callAmt), river = board.length === 5;
+    betting = buildCombos(dead, rangeSet, function(a, b){ return betWeight(classify(a, b, board), ratio, s.style, river); });
+    if (!betting.total) betting = null;
+  }
+  for (var i = 0; i < s.opp; i++) sources.push(i === 0 && betting ? betting : plain);
+  return sources;
+}
+
+function isShort(s){ var x = s.bb && s.stack ? s.stack / s.bb : 0; return x > 0 && x <= 12; }
+// Ставка в 8 ББ и больше считается ререйзом, в 30 ББ и больше почти олл-ином.
+function preTier(s){
+  var tier = s.spot === 'four' ? 'three' : s.spot === 'five' ? 'jam' : s.spot, bb = s.bb || 0, call = s.call || 0;
+  if (tier === 'none' || !bb || !call) return tier;
+  if (tier === 'raise' && call / bb >= 8) tier = 'three';
+  if (tier === 'three' && call / bb >= 30) tier = 'jam';
+  return tier;
+}
+// Запасной совет для ситуаций вне солверных таблиц: лимпы, колд-коллы, необычные ставки, средние случаи.
+function approxAdvice(s, hole, eq){
+  var code = handCode(hole[0], hole[1]), pos = s.pos, bb = s.bb || 0;
+  var stackBB = bb && s.stack ? s.stack / bb : 0;
+  var short = isShort(s);
+  var call = s.call || 0;
+  var posName = POS_NAME[pos], out = { code: code };
+  function size(mult){ return bb ? mult * bb : 0; }
+  function allIn(){ return { action: 'allin', word: 'Олл-ин', size: s.stack ? String(num(s.stack)) : '' }; }
+  if (s.spot === 'none') {
+    if (short) {
+      if (R(CHART.push[pos])[code]) { out = allIn(); out.reason = 'Короткий стек: ' + num(stackBB) + ' ББ. С ' + code + ' лучше идти сразу на все фишки.'; return out; }
+      if (pos === 'BB') return { action: 'check', word: 'Чек', size: '', reason: 'Короткий стек. Смотрите флоп бесплатно.' };
+      return { action: 'fold', word: 'Фолд', size: '', reason: 'Короткий стек: ' + code + ' не входит в таблицу пуша с позиции «' + posName + '».' };
+    }
+    var limpers = bb && s.pot ? Math.max(0, Math.floor((s.pot - 1.5 * bb) / bb)) : 0;
+    if (R(CHART.open[pos])[code]) {
+      var m = (pos === 'SB' || pos === 'BB' ? 3 : 2.5) + limpers;
+      return { action: 'raise', word: 'Рейз', size: bb ? 'до ' + num(size(m)) : 'до ' + m + ' ББ',
+        reason: code + ' входит в таблицу открытия с позиции «' + posName + '».' };
+    }
+    if (pos === 'BB') return { action: 'check', word: 'Чек', size: '', reason: 'Рейза не было, флоп бесплатный.' };
+    return { action: 'fold', word: 'Фолд', size: '', reason: code + ' слишком слаба для открытия с позиции «' + posName + '».' };
+  }
+  var tier = preTier(s);
+  if (short) {
+    var pushSet = tier === 'raise' ? CHART.pushOverRaise : CHART.pushOverThreeBet;
+    if (R(pushSet)[code]) { out = allIn(); out.reason = 'Короткий стек: ' + num(stackBB) + ' ББ. ' + code + ' достаточно сильна, чтобы идти на все фишки.'; return out; }
+    return { action: 'fold', word: 'Фолд', size: '', reason: 'Короткий стек: с ' + code + ' лучше дождаться руки посильнее.' };
+  }
+  if (tier === 'jam') {
+    if (R('QQ+,AKs,AKo')[code]) return { action: 'call', word: 'Колл', size: call ? String(num(call)) : '', reason: 'Ставка очень большая, но ' + code + ' её выдерживает.' };
+    return { action: 'fold', word: 'Фолд', size: '', reason: 'Против такой большой ставки ' + code + ' не хватает.' };
+  }
+  if (tier === 'three') {
+    if (R(CHART.fourBet)[code]) {
+      var t4 = call ? call * 2.3 : 0;
+      if (s.stack && t4 >= s.stack * 0.4) { out = allIn(); out.reason = code + ' достаточно сильна для олл-ина против ререйза.'; return out; }
+      return { action: 'raise', word: 'Рейз', size: t4 ? 'до ' + num(t4) : 'в 2,3 раза', reason: code + ' входит в таблицу ответного рейза.' };
+    }
+    if (R(CHART.callThreeBet)[code]) return { action: 'call', word: 'Колл', size: call ? String(num(call)) : '', reason: code + ' можно продолжать против ререйза.' };
+    return { action: 'fold', word: 'Фолд', size: '', reason: code + ' не выдерживает ререйз.' };
+  }
+  if (R(CHART.threeBet[pos])[code]) {
+    var inPos = pos === 'CO' || pos === 'BTN', k = inPos ? 3 : 3.5, t3 = call ? call * k : 0;
+    if (s.stack && t3 >= s.stack * 0.4) { out = allIn(); out.reason = code + ': стек небольшой, поэтому рейз сразу на все фишки.'; return out; }
+    return { action: 'raise', word: 'Рейз', size: t3 ? 'до ' + num(t3) : 'в ' + String(k).replace('.', ',') + ' раза', reason: code + ' входит в таблицу ререйза с позиции «' + posName + '».' };
+  }
+  if (R(CHART.callRaise[pos])[code]) return { action: 'call', word: 'Колл', size: call ? String(num(call)) : '', reason: code + ' входит в таблицу колла с позиции «' + posName + '».' };
+  return { action: 'fold', word: 'Фолд', size: '', reason: code + ' не входит в таблицу против рейза с позиции «' + posName + '».' };
+}
+var POS_NAME = { EP: 'Ранняя', MP: 'Средняя', CO: 'Катофф', BTN: 'Баттон', SB: 'МБ', BB: 'ББ' };
+
+function postflopAdvice(s, hole, board, eq, hand){
+  var street = board.length, river = street === 5;
+  var n = s.opp, pot = s.pot || 0, call = s.call || 0, stack = s.stack || 0;
+  var pct = Math.round(eq * 100);
+  if (call <= 0) {
+    var V = fairShare(n) + 0.15;
+    if (eq >= V) {
+      var k = river ? 0.75 : 0.66, bet = pot ? pot * k : 0;
+      var useAll = stack && bet >= stack * 0.6;
+      if (useAll) return { action: 'allin', word: 'Олл-ин', size: String(num(stack)), reason: 'Шанс ' + pct + '%, а стек уже мал относительно банка.' };
+      return { action: 'raise', word: 'Бет', size: bet ? num(bet) + '' : (river ? '¾ банка' : '⅔ банка'), reason: 'Шанс ' + pct + '%: вы впереди, ставка заберёт деньги у рук слабее.' };
+    }
+    if (!river && hand.outs >= 8 && n === 1) {
+      return { action: 'raise', word: 'Бет', size: pot ? num(pot * 0.5) + '' : '½ банка', reason: 'Полублеф: ' + hand.outs + ' аутов, соперник может сбросить, а если заплатит, у вас ещё есть шанс усилиться.' };
+    }
+    return { action: 'check', word: 'Чек', size: '', reason: 'Шанс ' + pct + '%: для ставки маловато, бесплатная карта или вскрытие выгоднее.' };
+  }
+  if (!pot) return { action: 'wait', word: 'Нужен банк', size: '', reason: 'Введите банк, чтобы сравнить шанс с ценой колла.' };
+  var eff = stack ? Math.min(call, stack) : call;
+  var effPot = pot - (call - eff);
+  var need = eff / (effPot + eff), ev = eq * (effPot + eff) - eff;
+  var res = { need: need, ev: ev };
+  var margin = street === 3 ? 0.03 : street === 4 ? 0.02 : 0.01;
+  var allInCall = stack && call >= stack;
+  var R0 = fairShare(n) + 0.28;
+  if (eq >= R0 && eq >= need + 0.15 && !allInCall) {
+    var target = call * 3;
+    if (stack && target >= stack * 0.45) { res.action = 'allin'; res.word = 'Олл-ин'; res.size = String(num(stack)); }
+    else { res.action = 'raise'; res.word = 'Рейз'; res.size = 'до ' + num(target); }
+    res.reason = 'Шанс ' + pct + '% намного выше цены ' + Math.round(need * 100) + '%. Поднимайте ставку, пока соперник платит.';
+    return res;
+  }
+  if (eq >= need + margin) {
+    res.action = 'call'; res.word = allInCall ? 'Колл, олл-ин' : 'Колл'; res.size = String(num(eff));
+    res.reason = 'Шанс ' + pct + '% выше цены ' + Math.round(need * 100) + '%: колл окупается на дистанции.';
+    res.close = eq < need + 0.05;
+    if (res.close) res.reason += ' Запас небольшой.';
+    return res;
+  }
+  var deep = !stack || eff <= stack * 0.15;
+  if (!river && hand.outs >= 8 && eq >= need - 0.04 && deep) {
+    res.action = 'call'; res.word = 'Колл'; res.size = String(num(eff)); res.close = true;
+    res.reason = hand.outs + ' аутов: сейчас цена чуть выше шанса, но при попадании вы заберёте ещё фишки.';
+    return res;
+  }
+  res.action = 'fold'; res.word = 'Фолд'; res.size = ''; res.close = eq >= need - 0.03;
+  res.reason = 'Шанс ' + pct + '% ниже цены ' + Math.round(need * 100) + '%: колл теряет фишки на дистанции.';
+  if (res.close) res.reason += ' Решение близкое.';
+  return res;
+}
+
+// ---- Солверные таблицы (Leakproof 6max-100bb-norake 1.0.0, CC BY 4.0) и равновесие «олл-ин или фолд» ----
+var POS_MAP = { EP: 'UTG', MP: 'HJ', CO: 'CO', BTN: 'BTN', SB: 'SB', BB: 'BB' };
+var SEAT_ORDER = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+var BLIND = { SB: 0.5, BB: 1 };
+var CODE_IDX = null, PF_INDEX = null, _dec = {};
+function codeIdx(){
+  if (!CODE_IDX) { CODE_IDX = {}; allCodes().forEach(function(c, i){ CODE_IDX[c] = i; }); }
+  return CODE_IDX;
+}
+function pfNode(line, actor){
+  if (!PF_INDEX) { PF_INDEX = {}; PF_RAW.forEach(function(n, i){ PF_INDEX[n[0] + '|' + n[1]] = i; }); }
+  var key = line + '|' + actor;
+  if (_dec[key]) return _dec[key];
+  var i = PF_INDEX[key]; if (i === undefined) return null;
+  var n = PF_RAW[i];
+  return (_dec[key] = { line: n[0], actor: n[1], pot: n[2], toCall: n[3], actions: n[4], reach: n[5], strat: n[6] });
+}
+function nodeFreqs(node, code){ // частоты действий для руки или null, если рука сюда не доходит
+  var i = codeIdx()[code];
+  if (node.strat[0][i] === '-') return null;
+  return node.strat.map(function(st){ return parseInt(st[i], 36) / 24; });
+}
+function extendLine(line, actor){ // линия после рейза игрока actor в этой точке
+  var n = pfNode(line, actor); if (!n) return null;
+  for (var i = 0; i < n.actions.length; i++) if (n.actions[i].indexOf('raise') === 0) return (line ? line + ', ' : '') + actor + ' ' + n.actions[i];
+  return null;
+}
+// Находит точку решения героя и источник диапазона соперника
+function locate(s){
+  var H = POS_MAP[s.pos], V = s.vill ? POS_MAP[s.vill] : null, hi = SEAT_ORDER.indexOf(H), vi = SEAT_ORDER.indexOf(V);
+  var bb = s.bb || 0, call = s.call || 0, shove = (bb && call / bb >= 40) || (s.stack && call >= s.stack * 0.6), L1, L2, L3, n;
+  if (s.spot === 'none') { n = pfNode('', H); return n ? { node: n, H: H } : null; }
+  if (!V) return null;
+  if (s.spot === 'raise') {
+    if (vi >= hi) return null;
+    L1 = extendLine('', V); n = L1 && pfNode(L1, H);
+    return n ? { node: n, H: H, V: V, from: ['', V, 'raise'] } : null;
+  }
+  if (s.spot === 'three') {
+    if (vi <= hi) return null; // соперник сделал ререйз, а герой ещё не вкладывал фишки: такого нет в дереве
+    L1 = extendLine('', H); L2 = L1 && extendLine(L1, V); n = L2 && pfNode(L2, H);
+    return n ? { node: n, H: H, V: V, from: [L1, V, 'raise'] } : null;
+  }
+  if (s.spot === 'four') {
+    if (vi >= hi) return null;
+    L1 = extendLine('', V); L2 = L1 && extendLine(L1, H); if (!L2) return null;
+    if (shove) { n = pfNode(L2 + ', ' + V + ' allin', H); return n ? { node: n, H: H, V: V, from: [L2, V, 'allin'] } : null; }
+    L3 = extendLine(L2, V); n = L3 && pfNode(L3, H);
+    return n ? { node: n, H: H, V: V, from: [L2, V, 'raise'] } : null;
+  }
+  if (s.spot === 'five') {
+    if (vi <= hi) return null;
+    L1 = extendLine('', H); L2 = L1 && extendLine(L1, V); L3 = L2 && extendLine(L2, H); if (!L3) return null;
+    n = pfNode(L3 + ', ' + V + ' allin', H);
+    return n ? { node: n, H: H, V: V, from: [L3, V, 'allin'] } : null;
+  }
+  return null;
+}
+function villainWeights(s){
+  var loc = locate(s); if (!loc || !loc.from) return null;
+  var p = pfNode(loc.from[0], loc.from[1]); if (!p) return null;
+  var idx = []; p.actions.forEach(function(a, i){ if (a.indexOf(loc.from[2]) === 0) idx.push(i); });
+  var out = {}, combos = 0;
+  allCodes().forEach(function(c, i){
+    if (p.reach[i] === '-') return;
+    var r = parseInt(p.reach[i], 36) / 35, f = 0;
+    idx.forEach(function(k){ f += parseInt(p.strat[k][i], 36) / 24; });
+    if (r * f > 0) { out[c] = r * f; combos += r * f * (c.length === 2 ? 6 : c[2] === 's' ? 4 : 12); }
+  });
+  return combos >= 30 ? out : null; // слишком узкий диапазон искажён округлением таблицы
+}
+function chips(v){ var r = v >= 100 ? Math.round(v) : Math.round(v * 10) / 10; return String(r).replace('.', ','); }
+function heroInvested(line, H){
+  var parts = line.split(', '), inv = BLIND[H] || 0;
+  parts.forEach(function(p){ var m = p.match(/^(\w+) raise ([\d.]+)bb$/); if (m && m[1] === H) inv = parseFloat(m[2]); });
+  return inv;
+}
+var ACT_WORD = { fold: 'Фолд', call: 'Колл', raise: 'Рейз', allin: 'Олл-ин' };
+function kindOf(a){ return a.indexOf('raise') === 0 ? 'raise' : a; }
+function pctText(p){ return Math.round(p * 100) + '%'; }
+function buildMix(actions, freqs){
+  var list = [];
+  actions.forEach(function(a, i){ if (freqs[i] > 0.001) list.push({ a: a, kind: kindOf(a), p: freqs[i], i: i }); });
+  list.sort(function(x, y){ return y.p - x.p || y.i - x.i; }); // при равенстве более активное действие
+  return list;
+}
+function mixText(list){
+  return list.map(function(m){ return ACT_WORD[m.kind].toLowerCase() + ' ' + pctText(m.p); }).join(', ');
+}
+function solverPreflop(s, hole){
+  var code = handCode(hole[0], hole[1]), bb = s.bb || 0, call = s.call || 0;
+  if (isShort(s)) return nashAdvice(s, code);
+  if (s.pos === 'BB' && s.spot === 'none') return null;
+  if (s.spot === 'none' && bb && s.pot > 1.75 * bb) return null; // были лимпы
+  if (s.spot === 'raise' && bb && call / bb >= 8) return null;   // не обычный рейз
+  var loc = locate(s); if (!loc) return null;
+  var node = loc.node, freqs = nodeFreqs(node, code);
+  var src = 'Таблица солвера, 100 ББ';
+  if (!freqs) return { action: 'fold', word: 'Фолд', size: '', source: 'solver', sourceText: src, reason: 'С ' + code + ' таблица до этого решения не доходит. Лучше сбросить.' };
+  var facingShove = /allin$/.test(node.line);
+  var list = buildMix(node.actions, freqs), top = list[0], adv = { source: 'solver', sourceText: src, mix: list };
+  if (facingShove) list.forEach(function(m){ if (m.kind === 'allin') m.kind = 'call'; });
+  adv.action = top.kind; adv.word = ACT_WORD[top.kind]; adv.size = '';
+  var ratio = 1, inv = heroInvested(node.line, loc.H);
+  if (call && bb) ratio = (call / bb + inv) / (node.toCall + inv);
+  if (top.kind === 'raise') {
+    var x = parseFloat(top.a.slice(6)), target = x * ratio;
+    if (bb) {
+      if (s.stack && target * bb >= s.stack * 0.45) { adv.action = 'allin'; adv.word = 'Олл-ин'; adv.size = chips(s.stack); }
+      else adv.size = 'до ' + chips(target * bb);
+    } else adv.size = 'до ' + chips(target) + ' ББ';
+  } else if (top.kind === 'call' && facingShove) { adv.word = 'Колл, олл-ин'; adv.size = s.stack ? chips(call ? Math.min(call, s.stack) : s.stack) : (call ? chips(call) : '');
+  } else if (top.kind === 'call') adv.size = call ? chips(s.stack ? Math.min(call, s.stack) : call) : '';
+  else if (top.kind === 'allin') adv.size = s.stack ? chips(s.stack) : '';
+  adv.reason = list.length > 1 ? 'Смешанное решение: ' + mixText(list) + '.' : code + ': только ' + ACT_WORD[top.kind].toLowerCase() + '.';
+  var stackBB = bb && s.stack ? s.stack / bb : 0;
+  if (ratio > 1.6) adv.reason += ' Ставка больше табличной, поэтому совет примерный.';
+  if (stackBB && stackBB < 40) adv.reason += ' Таблица для 100 ББ, у вас ' + Math.round(stackBB) + ' ББ.';
+  return adv;
+}
+function nashDepth(s){
+  var x = s.stack / s.bb, ds = [4, 6, 8, 10, 12], best = 4;
+  ds.forEach(function(d){ if (Math.abs(d - x) < Math.abs(best - x)) best = d; });
+  return best;
+}
+function nashAdvice(s, code){
+  var H = POS_MAP[s.pos], V = s.vill ? POS_MAP[s.vill] : null, d = nashDepth(s), i = codeIdx()[code], stackBB = s.stack / s.bb;
+  var src = 'Равновесие Нэша, ' + d + ' ББ';
+  if (s.spot === 'none') {
+    if (H === 'BB' || (s.bb && s.pot > 1.75 * s.bb)) return null;
+    var f = +NASH.jam[d][H][i] / 9;
+    return { action: f >= 0.5 ? 'allin' : 'fold', word: f >= 0.5 ? 'Олл-ин' : 'Фолд', size: f >= 0.5 ? chips(s.stack) : '', source: 'nash', sourceText: src,
+      reason: (f > 0.02 && f < 0.98 ? 'Граничная рука: олл-ин в ' + pctText(f) + ' случаев.' : code + (f >= 0.5 ? ': только олл-ин.' : ': только фолд.')) + ' Стек ' + Math.round(stackBB) + ' ББ.' };
+  }
+  if (s.spot === 'raise' && V && s.call >= s.stack * 0.6 && SEAT_ORDER.indexOf(V) < SEAT_ORDER.indexOf(H)) {
+    var c = +NASH.call[d][V + '|' + H][i] / 9, eff = Math.min(s.call, s.stack);
+    return { action: c >= 0.5 ? 'call' : 'fold', word: c >= 0.5 ? 'Колл' : 'Фолд', size: c >= 0.5 ? chips(eff) : '', source: 'nash', sourceText: src,
+      reason: c > 0.02 && c < 0.98 ? 'Граничная рука: колл в ' + pctText(c) + ' случаев.' : code + (c >= 0.5 ? ': отвечаем на олл-ин.' : ': против олл-ина сбрасываем.') };
+  }
+  return null;
+}
+function finishAdvice(s, hole, board, eq){
+  var hand = board.length ? describeHand(hole, board) : null, adv;
+  if (!board.length) {
+    adv = solverPreflop(s, hole) || approxAdvice(s, hole, eq);
+    if (!adv.source) adv.source = adv.action === 'check' ? 'free' : 'approx';
+    if (s.call > 0 && s.pot > 0) {
+      var eff = s.stack ? Math.min(s.call, s.stack) : s.call, ep = s.pot - (s.call - eff);
+      adv.need = eff / (ep + eff);
+    }
+  } else { adv = postflopAdvice(s, hole, board, eq, hand); adv.source = 'post'; }
+  adv.equity = eq; adv.hand = hand;
+  return adv;
+}
+/*ENGINE-END*/
+
+/*VISION-START*/
+// Самораспознавание стола по одному снимку. Без разметки и без сети.
+var Vision = (function(){
+  var GW = 14, GH = 20, N = GW * GH, TPL = null;
+  var RANK_CH = ['A','K','Q','J','T','10','9','8','7','6','5','4','3','2'];
+  var SUIT_NAMES = ['s','h','d','c'];
+  var TEXT_CH = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzБбАаНнКкОоЛлЧчеДд$€₽';
+  var FONTS = ['700 72px Arial,Helvetica,"Liberation Sans",sans-serif', '400 72px Arial,Helvetica,"Liberation Sans",sans-serif',
+    '700 72px Georgia,"Times New Roman","Liberation Serif",serif', '700 72px Verdana,Tahoma,"DejaVu Sans",sans-serif',
+    '600 72px "Segoe UI",Roboto,"Noto Sans",sans-serif'];
+
+  function newCanvas(w, h){
+    if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+    var c = document.createElement('canvas'); c.width = w; c.height = h; return c;
+  }
+  // Приводит область к сетке GW×GH с сохранением пропорций
+  function normRegion(get, x0, y0, w, h){
+    var out = new Float32Array(N), s = Math.min(GW / w, GH / h), dw = w * s, dh = h * s, ox = (GW - dw) / 2, oy = (GH - dh) / 2;
+    for (var j = 0; j < GH; j++) for (var i = 0; i < GW; i++) {
+      var hit = 0;
+      for (var a = 0; a < 2; a++) for (var b = 0; b < 2; b++) {
+        var sx = (i + (a ? .75 : .25) - ox) / s, sy = (j + (b ? .75 : .25) - oy) / s;
+        if (sx >= 0 && sy >= 0 && sx < w && sy < h && get(x0 + (sx | 0), y0 + (sy | 0))) hit++;
+      }
+      out[j * GW + i] = hit / 4;
+    }
+    return out;
+  }
+  function sim(a, b){
+    var m = 0, s = 0;
+    for (var i = 0; i < N; i++) { var x = a[i], y = b[i]; m += x < y ? x : y; s += x + y; }
+    return s ? 2 * m / s : 0;
+  }
+  function best(list, v){
+    var top = null, score = -1;
+    for (var i = 0; i < list.length; i++) { var q = sim(list[i].v, v); if (q > score) { score = q; top = list[i].ch; } }
+    return { ch: top, score: score };
+  }
+  function suitPath(c, s){
+    var C = 48;
+    c.beginPath();
+    if (s === 'h') { c.moveTo(C, 92); c.bezierCurveTo(-10, 48, 8, 4, C, 30); c.bezierCurveTo(88, 4, 106, 48, C, 92); }
+    else if (s === 'd') { c.moveTo(C, 2); c.lineTo(84, 48); c.lineTo(C, 94); c.lineTo(12, 48); c.closePath(); }
+    else if (s === 's') { c.moveTo(C, 4); c.bezierCurveTo(100, 50, 84, 82, 54, 66); c.lineTo(62, 92); c.lineTo(34, 92); c.lineTo(42, 66); c.bezierCurveTo(12, 82, -4, 50, C, 4); }
+    else { c.arc(C, 26, 21, 0, 7); c.moveTo(30, 58); c.arc(26, 58, 21, 0, 7); c.moveTo(90, 58); c.arc(70, 58, 21, 0, 7); c.moveTo(C, 40); c.lineTo(58, 92); c.lineTo(38, 92); c.closePath(); }
+    c.fill();
+  }
+  function grab(cv, c){
+    var W = cv.width, H = cv.height, d = c.getImageData(0, 0, W, H).data, x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 110) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) return null;
+    return normRegion(function(a, b){ return d[(b * W + a) * 4 + 3] > 110; }, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+  }
+  function templates(){
+    if (TPL) return TPL;
+    var cv = newCanvas(170, 130), c = cv.getContext('2d', { willReadFrequently: true });
+    function glyph(font, ch){
+      c.clearRect(0, 0, 170, 130); c.font = font; c.fillStyle = '#000'; c.textBaseline = 'alphabetic'; c.fillText(ch, 14, 96);
+      return grab(cv, c);
+    }
+    var rank = [], suit = [], text = [];
+    FONTS.forEach(function(f){
+      RANK_CH.forEach(function(ch){ var v = glyph(f, ch); if (v) rank.push({ ch: ch, v: v }); });
+      ['♠','♥','♦','♣'].forEach(function(ch, i){ var v = glyph(f, ch + '︎'); if (v) suit.push({ ch: SUIT_NAMES[i], v: v }); });
+    });
+    FONTS.slice(0, 4).forEach(function(f){
+      for (var i = 0; i < TEXT_CH.length; i++) { var v = glyph(f, TEXT_CH[i]); if (v) text.push({ ch: TEXT_CH[i], v: v }); }
+    });
+    SUIT_NAMES.forEach(function(s){
+      c.clearRect(0, 0, 170, 130); c.fillStyle = '#000'; suitPath(c, s);
+      var v = grab(cv, c); if (v) suit.push({ ch: s, v: v });
+    });
+    TPL = { rank: rank, suit: suit, text: text, digit: text.filter(function(t){ return /[0-9]/.test(t.ch); }) };
+    return TPL;
+  }
+  // Связные области маски
+  function components(mask, W, H, minArea, x0, y0, x1, y1){
+    x0 = x0 || 0; y0 = y0 || 0; x1 = x1 === undefined ? W : x1; y1 = y1 === undefined ? H : y1;
+    var seen = new Uint8Array(W * H), st = new Int32Array(W * H), out = [];
+    for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) {
+      var p = y * W + x;
+      if (!mask[p] || seen[p]) continue;
+      var sp = 0, area = 0, a = x, b = y, e = x, f = y, sr = 0, sg = 0; st[sp++] = p; seen[p] = 1;
+      while (sp) {
+        var q = st[--sp], qy = q / W | 0, qx = q - qy * W; area++;
+        if (qx < a) a = qx; if (qx > e) e = qx; if (qy < b) b = qy; if (qy > f) f = qy;
+        for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+          var nx = qx + dx, ny = qy + dy;
+          if (nx < x0 || ny < y0 || nx >= x1 || ny >= y1) continue;
+          var r = ny * W + nx;
+          if (mask[r] && !seen[r]) { seen[r] = 1; st[sp++] = r; }
+        }
+      }
+      if (area >= minArea) out.push({ x: a, y: b, w: e - a + 1, h: f - b + 1, area: area, cx: (a + e + 1) / 2, cy: (b + f + 1) / 2 });
+    }
+    return out;
+  }
+
+  // Форма значка: черва сверху широкая, бубна острая. Пика расширяется вниз плавно, у трефы сверху круг и перехват.
+  function suitShape(ink, W, S){
+    function width(row){
+      var y = S.y + Math.round(S.h * row), a = -1, b = -1;
+      for (var x = S.x; x < S.x + S.w; x++) if (ink[y * W + x]) { if (a < 0) a = x; b = x; }
+      return b < 0 ? 0 : (b - a + 1) / S.w;
+    }
+    var w12 = width(.12), w16 = width(.16), w30 = width(.3), w36 = width(.36);
+    return { known: S.h >= 8, heart: (w12 + w16) / 2 > .62, spade: (w30 + w36) / 2 - (w12 + w16) / 2 > .1 };
+  }
+  function findCards(px, W, H, T){
+    var light = new Uint8Array(W * H), i, n = W * H;
+    for (i = 0; i < n; i++) {
+      var r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      light[i] = mn >= 165 && mx - mn <= 55 ? 1 : 0;
+    }
+    var blobs = components(light, W, H, Math.max(180, W * H * 0.00012));
+    var raw = [], minDim = Math.min(W, H);
+    blobs.forEach(function(B){
+      if (B.h < 22 || B.w < 14 || B.h > H * .45 || B.w > W * .6) return;
+      if (B.area / (B.w * B.h) < .4) return;
+      var ink = new Uint8Array(W * H), yy, xx;
+      for (yy = B.y; yy < B.y + B.h; yy++) for (xx = B.x; xx < B.x + B.w; xx++) if (!light[yy * W + xx]) ink[yy * W + xx] = 1;
+      // отрезаем фон за скруглёнными углами и наклоном: чернила у самой кромки не считаем
+      var parts = components(ink, W, H, 6, B.x, B.y, B.x + B.w, B.y + B.h).filter(function(c){
+        return c.h >= B.h * .055 && c.h <= B.h * .75 && c.h >= 6 && !(c.x <= B.x + 1 && c.y <= B.y + 1 && c.w < B.w * .2 && c.area < 40);
+      });
+      var glyphs = parts.map(function(c){
+        var v = normRegion(function(a, b){ return ink[b * W + a]; }, c.x, c.y, c.w, c.h);
+        var sr = 0, sg = 0, sb = 0, cnt = 0;
+        for (var y2 = c.y; y2 < c.y + c.h; y2++) for (var x2 = c.x; x2 < c.x + c.w; x2++) if (ink[y2 * W + x2]) {
+          var o = (y2 * W + x2) * 4, sat = Math.max(px[o], px[o + 1], px[o + 2]) - Math.min(px[o], px[o + 1], px[o + 2]);
+          if (px[o] + px[o + 1] + px[o + 2] < 500 || sat > 70) { sr += px[o]; sg += px[o + 1]; sb += px[o + 2]; cnt++; }
+        }
+        c.r = cnt ? sr / cnt : 0; c.g = cnt ? sg / cnt : 0; c.b = cnt ? sb / cnt : 0;
+        c.hue = c.r > c.g + 40 && c.r > c.b + 25 ? 'red' : c.b > c.r + 30 && c.b > c.g + 10 ? 'blue' : c.g > c.r + 25 && c.g >= c.b ? 'green' : 'black';
+        c.rank = best(T.rank, v); c.suit = best(T.suit, v);
+        return c;
+      });
+      // «1» и «0» рядом это десятка
+      glyphs.forEach(function(g){
+        var gd = best(T.digit, normRegion(function(a, b){ return ink[b * W + a]; }, g.x, g.y, g.w, g.h));
+        if (gd.ch !== '1' && !(g.w < g.h * .42)) return;
+        glyphs.forEach(function(h){
+          if (h !== g && h.x > g.x && h.x - g.x - g.w < g.h * .55 && Math.abs(h.cy - g.cy) < g.h * .25 && Math.abs(h.h - g.h) < g.h * .25) {
+            var v = best(T.digit, normRegion(function(a, b){ return ink[b * W + a]; }, h.x, h.y, h.w, h.h));
+            if (v.ch === '0' || h.rank.ch === 'Q' || h.rank.ch === '0') { g.ten = h; g.isTen = true; h.partOfTen = true; }
+          }
+        });
+      });
+      glyphs.forEach(function(R){
+        if (R.partOfTen) return;
+        var rk = R.isTen ? 'T' : R.rank.ch, rs = R.isTen ? .9 : R.rank.score;
+        if (rs < .6 || R.cy > B.y + B.h * .6) return;
+        if (rk === '1' || rk === '0') return;
+        var X1 = R.isTen ? R.ten.x + R.ten.w : R.x + R.w, top = null;
+        glyphs.forEach(function(S){
+          if (S === R || S === R.ten || S.suit.score < .58) return;
+          var size = S.h / R.h; if (size < .35 || size > 3.2) return;
+          var below = S.cy > R.cy && S.y >= R.y + R.h * .55 && S.y - (R.y + R.h) < R.h * 1.5 && S.cx > R.x - R.h * .8 && S.cx < X1 + R.h * 2.6;
+          var right = B.h >= R.h * 2.6 && S.x >= X1 - 1 && S.x - X1 < R.h * .9 && Math.abs(S.cy - R.cy) < R.h * .4;
+          if (!below && !right) return;
+          var hue = S.hue, cand = T.suit;
+          var allow = hue === 'red' ? 'hd' : hue === 'blue' ? 'd' : hue === 'green' ? 'c' : 'sc';
+          var v = S.suit;
+          if (allow.indexOf(v.ch) < 0) {
+            var sub = cand.filter(function(t){ return allow.indexOf(t.ch) >= 0; });
+            v = best(sub, normRegion(function(a, b){ return ink[b * W + a]; }, S.x, S.y, S.w, S.h));
+            if (v.score < .5) return;
+          }
+          if (hue === 'red' || hue === 'black') {
+            var shape = suitShape(ink, W, S), pick = hue === 'red' ? (shape.heart ? 'h' : 'd') : (shape.spade ? 's' : 'c');
+            if (shape.known) v = { ch: pick, score: v.score };
+          }
+          var dist = Math.abs(S.cx - R.cx) + Math.abs(S.cy - R.cy);
+          var q = (rs + v.score) / 2 - dist / (R.h * 40);
+          if (!top || q > top.q) top = { q: q, s: v.ch };
+        });
+        if (!top) return;
+        var ch = rk === '10' ? 'T' : rk;
+        raw.push({ code: ch + top.s, q: top.q, x: R.x, y: R.y, h: R.h, cx: R.cx, cy: R.cy, blob: B });
+      });
+    });
+    // одна карта не может встретиться дважды
+    var seen = {}, cards = [];
+    raw.sort(function(a, b){ return b.q - a.q; });
+    raw.forEach(function(c){
+      if (seen[c.code]) return;
+      if (cards.some(function(o){ return Math.abs(o.cx - c.cx) < Math.max(o.h, c.h) * .9 && Math.abs(o.cy - c.cy) < Math.max(o.h, c.h) * 1.2; })) return;
+      seen[c.code] = 1; cards.push(c);
+    });
+    return { cards: cards, blobs: blobs };
+  }
+  function groupCards(cards, W, H){
+    var rows = [];
+    cards.slice().sort(function(a, b){ return a.cy - b.cy; }).forEach(function(c){
+      var row = rows.find(function(r){ return Math.abs(r.cy - c.cy) < Math.max(r.h, c.h) * 1.3; });
+      if (row) { row.list.push(c); row.cy = row.list.reduce(function(s, k){ return s + k.cy; }, 0) / row.list.length; row.h = Math.max(row.h, c.h); }
+      else rows.push({ list: [c], cy: c.cy, h: c.h });
+    });
+    rows.forEach(function(r){ r.list.sort(function(a, b){ return a.x - b.x; }); r.cx = r.list.reduce(function(s, k){ return s + k.cx; }, 0) / r.list.length; });
+    var board = [], hero = [], boardRow = null, cand = rows.filter(function(r){ return r.list.length >= 3 && r.list.length <= 7; });
+    if (cand.length) {
+      cand.sort(function(a, b){ return Math.abs(a.cy - H * .45) - Math.abs(b.cy - H * .45); });
+      boardRow = cand[0];
+      if (boardRow.list.length > 5) { hero = boardRow.list.slice(); hero = []; }
+      board = boardRow.list.slice(0, 5);
+    }
+    // рука героя: ниже всех, ближе к центру снизу; две карты могут лежать и в разных строках из-за наклона
+    var rest = cards.filter(function(c){ return !boardRow || boardRow.list.indexOf(c) < 0; });
+    var limit = boardRow ? boardRow.cy + boardRow.h * .5 : H * .3;
+    rest = rest.filter(function(c){ return c.cy > limit; });
+    var pair = null, score = -1e9;
+    for (var i = 0; i < rest.length; i++) for (var j = i + 1; j < rest.length; j++) {
+      var a = rest[i], b = rest[j], gapx = Math.abs(a.cx - b.cx), gapy = Math.abs(a.cy - b.cy), h = Math.max(a.h, b.h);
+      if (gapx > h * 9 || gapy > h * 2.2) continue;
+      var mid = (a.cx + b.cx) / 2, y = (a.cy + b.cy) / 2, q = y / H - Math.abs(mid - W / 2) / W * .8;
+      if (q > score) { score = q; pair = a.cx < b.cx ? [a, b] : [b, a]; }
+    }
+    if (pair) hero = pair;
+    return { board: board, hero: hero, boardRow: boardRow };
+  }
+
+  // Текст и суммы
+  function readLines(px, W, H, cardsBoxes, T){
+    var gray = new Uint8Array(W * H), i, n = W * H;
+    for (i = 0; i < n; i++) gray[i] = (px[i * 4] * 77 + px[i * 4 + 1] * 150 + px[i * 4 + 2] * 29) >> 8;
+    var I = new Float64Array((W + 1) * (H + 1)), S = W + 1, x, y;
+    for (y = 1; y <= H; y++) { var row = 0; for (x = 1; x <= W; x++) { row += gray[(y - 1) * W + x - 1]; I[y * S + x] = I[(y - 1) * S + x] + row; } }
+    var R = Math.max(14, Math.round(Math.min(W, H) * .022)), hmax = Math.max(26, Math.min(W, H) * .075);
+    var lines = [];
+    [1, -1].forEach(function(sign){
+      var mask = new Uint8Array(W * H), TH = 42;
+      for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+        var ax = Math.max(0, x - R), bx = Math.min(W, x + R + 1), ay = Math.max(0, y - R), by = Math.min(H, y + R + 1);
+        var mean = (I[by * S + bx] - I[ay * S + bx] - I[by * S + ax] + I[ay * S + ax]) / ((bx - ax) * (by - ay));
+        if ((gray[y * W + x] - mean) * sign > TH) mask[y * W + x] = 1;
+      }
+      cardsBoxes.forEach(function(b){ for (var yy = Math.max(0, b.y - 2); yy < Math.min(H, b.y + b.h + 2); yy++) for (var xx = Math.max(0, b.x - 2); xx < Math.min(W, b.x + b.w + 2); xx++) mask[yy * W + xx] = 0; });
+      var comps = components(mask, W, H, 3);
+      var main = [], small = [];
+      comps.forEach(function(c){
+        if (c.h > hmax || c.w > c.h * 2.6) return;
+        if (c.h >= 8 && c.area >= 12) main.push(c); else if (c.h <= 7) small.push(c);
+      });
+      if (main.length > 1400) return;
+      // склеенные цифры
+      var split = [];
+      main.forEach(function(c){
+        if (c.w <= c.h * 1.02) { split.push(c); return; }
+        var k = Math.max(2, Math.round(c.w / (c.h * .62))), step = c.w / k, cuts = [c.x];
+        for (var q = 1; q < k; q++) {
+          var mid = Math.round(c.x + step * q), bestX = mid, low = 1e9;
+          for (var xx = mid - Math.round(step * .3); xx <= mid + Math.round(step * .3); xx++) {
+            var cnt = 0; for (var yy = c.y; yy < c.y + c.h; yy++) cnt += mask[yy * W + xx];
+            if (cnt < low) { low = cnt; bestX = xx; }
+          }
+          cuts.push(bestX);
+        }
+        cuts.push(c.x + c.w);
+        for (var z = 0; z + 1 < cuts.length; z++) {
+          var w = cuts[z + 1] - cuts[z];
+          if (w >= 2) split.push({ x: cuts[z], y: c.y, w: w, h: c.h, area: c.area / k, cx: cuts[z] + w / 2, cy: c.cy });
+        }
+      });
+      split.sort(function(a, b){ return a.x - b.x; });
+      var groups = [];
+      split.forEach(function(c){
+        var g = null;
+        for (var k = groups.length - 1; k >= 0; k--) {
+          var L = groups[k], last = L.g[L.g.length - 1];
+          if (Math.abs(last.cy - c.cy) < Math.max(last.h, c.h) * .36 && c.x - (last.x + last.w) < Math.max(last.h, c.h) * 1.15 && c.h / last.h < 1.7 && c.h / last.h > .55) { g = L; break; }
+        }
+        if (g) g.g.push(c); else groups.push({ g: [c] });
+      });
+      groups.forEach(function(L){
+        if (L.g.length > 22) return;
+        var hh = L.g.reduce(function(s, c){ return Math.max(s, c.h); }, 0), base = L.g.reduce(function(s, c){ return Math.max(s, c.y + c.h); }, 0);
+        var out = L.g.map(function(c){
+          var v = normRegion(function(a, b){ return mask[b * W + a]; }, c.x, c.y, c.w, c.h);
+          var any = best(T.text, v), dg = best(T.digit, v);
+          return { c: c, ch: any.ch, score: any.score, dg: dg };
+        });
+        // запятые, точки и двоеточия
+        var seps = small.concat(split).filter(function(s){ return s.h < hh * .55 && s.cx > L.g[0].x && s.cx < L.g[L.g.length - 1].x + L.g[L.g.length - 1].w && s.y + s.h > base - hh * .3 && s.y + s.h < base + hh * .45; });
+        var colon = small.some(function(s){ return s.cx > L.g[0].x && s.cx < L.g[L.g.length - 1].x + L.g[L.g.length - 1].w && s.y < base - hh * .5 && s.y > base - hh * 1.1; });
+        lines.push({ sign: sign, glyphs: out, seps: seps, colon: colon, x: L.g[0].x, y: Math.min.apply(null, L.g.map(function(c){ return c.y; })), w: L.g[L.g.length - 1].x + L.g[L.g.length - 1].w - L.g[0].x, h: hh });
+      });
+    });
+    // запятая, ставшая отдельной строкой, лежит рядом с крупной строкой
+    return lines.filter(function(L){
+      if (L.glyphs.length > 1 || L.w > L.h * 1.3) return true;
+      return !lines.some(function(o){ return o !== L && o.sign === L.sign && o.glyphs.length > 1 && o.h > L.h * 1.7 && o.h < L.h * 4 && L.x >= o.x - 2 && L.x + L.w <= o.x + o.w + 2 && L.y + L.h > o.y + o.h * .6 && L.y < o.y + o.h * 1.4; });
+    });
+  }
+  function near(a, words){
+    a = a.toLowerCase().replace(/[^a-zа-я]/g, '').replace(/i/g, 'l');
+    return words.some(function(w){
+      w = w.replace(/i/g, 'l');
+      if (a === w) return true;
+      if (a.length < 3 || Math.abs(a.length - w.length) > 1) return false;
+      var i = 0, j = 0, d = 0;
+      while (i < a.length && j < w.length) {
+        if (a[i] === w[j]) { i++; j++; continue; }
+        d++;
+        if (a.length > w.length) i++; else if (a.length < w.length) j++; else { i++; j++; }
+      }
+      return d + (a.length - i) + (w.length - j) <= 1;
+    });
+  }
+  function parseToken(L){
+    var g = L.glyphs, end = g.length - 1, mult = 1, tail = g[end], up = tail.ch.toUpperCase();
+    if (/[KКM]/.test(up) && g.length > 1 && tail.score > tail.dg.score) { mult = up === 'M' ? 1e6 : 1e3; end--; }
+    var first = end;
+    function digitLike(r){ return /[0-9]/.test(r.ch) || (r.dg.score >= r.score - .02 && r.dg.score > .66); }
+    if (!digitLike(g[end]) && !(g[end].dg.score >= g[end].score - .13 && g[end].dg.score > .62 && g.length <= 5)) return null;
+    function joined(i){ // цифры i-1 и i идут подряд или разделены запятой
+      var a = g[i - 1].c.x + g[i - 1].c.w, b = g[i].c.x;
+      return b - a < L.h * .62 || L.seps.some(function(s){ return s.cx >= a - 1 && s.cx <= b + 1; });
+    }
+    while (first > 0) {
+      var prev = g[first - 1], gapNow = g[first].c.x - (prev.c.x + prev.c.w);
+      var thin = prev.dg.score >= prev.score - .13 && prev.dg.score > .6 && gapNow < L.h * .3; // в мелком тексте 1 похожа на J и I
+      if ((digitLike(prev) && joined(first)) || thin) first--; else break;
+    }
+    var run = g.slice(first, end + 1), words = first ? [g.slice(0, first)] : [];
+    var avg = run.reduce(function(s, r){ return s + r.dg.score; }, 0) / run.length;
+    var letters = run.filter(function(r){ return !/[0-9]/.test(r.ch) && r.score > r.dg.score + .05 && r.dg.score < .68; }).length;
+    if (letters * 3 > run.length || avg < (run.length === 1 ? .72 : .64)) return null;
+    var prefix = words.map(function(w){ return w.map(function(r){ return r.ch; }).join(''); }).join('');
+    if (!prefix && L.colon) return null; // часы и таймеры
+    var txt = '';
+    run.forEach(function(r, k){
+      txt += r.dg.ch;
+      if (k + 1 < run.length) {
+        var a = r.c.x + r.c.w, b = run[k + 1].c.x;
+        if (L.seps.some(function(s){ return s.cx >= a - 1 && s.cx <= b + 1; })) txt += '.';
+      }
+    });
+    var parts = txt.split('.'), value;
+    if (parts.length > 1 && parts.slice(1).every(function(p){ return p.length === 3; })) value = +parts.join('');
+    else if (parts.length === 2) value = +(parts[0] + '.' + parts[1]);
+    else if (parts.length > 2) value = +(parts.slice(0, -1).join('') + '.' + parts[parts.length - 1]);
+    else value = +txt;
+    var x = run[0].c.x, y = L.y, w = run[run.length - 1].c.x + run[run.length - 1].c.w - x;
+    return { value: value * mult, prefix: prefix, x: x, y: y, w: w, h: L.h, cx: x + w / 2, cy: y + L.h / 2, q: avg };
+  }
+
+  function findDealer(px, W, H, T){
+    var m = new Uint8Array(W * H), i, n = W * H, top = null;
+    for (i = 0; i < n; i++) {
+      var r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2], mn = Math.min(r, g, b), mx = Math.max(r, g, b);
+      m[i] = (mn >= 150 && mx - mn < 70) || (r > 175 && g > 140 && b < 150) ? 1 : 0;
+    }
+    components(m, W, H, 50).forEach(function(c){
+      if (c.h < 13 || c.h > H * .085 || Math.abs(c.w - c.h) > c.h * .22) return;
+      var fill = c.area / (c.w * c.h); if (fill < .42 || fill > .86) return;
+      var ink = new Uint8Array(W * H), rad = c.w / 2;
+      for (var y = c.y; y < c.y + c.h; y++) for (var x = c.x; x < c.x + c.w; x++) {
+        var dx = x + .5 - c.cx, dy = y + .5 - c.cy;
+        if (dx * dx + dy * dy < rad * rad * .68 && !m[y * W + x]) ink[y * W + x] = 1;
+      }
+      var parts = components(ink, W, H, 6, c.x, c.y, c.x + c.w, c.y + c.h);
+      parts.sort(function(a, b){ return b.area - a.area; });
+      if (!parts.length) return;
+      var q = parts[0], v = best(T.text, normRegion(function(a, b){ return ink[b * W + a]; }, q.x, q.y, q.w, q.h));
+      if (/[DdДд]/.test(v.ch) && v.score > .6 && (!top || v.score > top.q)) top = { q: v.score, x: c.x, y: c.y, w: c.w, h: c.h, cx: c.cx, cy: c.cy };
+    });
+    return top;
+  }
+  function analyze(img){
+    var px = img.data, W = img.width, H = img.height, T = templates(), res = { W: W, H: H };
+    var found = findCards(px, W, H, T), grp = groupCards(found.cards, W, H);
+    res.hero = grp.hero.map(function(c){ return c.code; });
+    res.board = grp.board.map(function(c){ return c.code; });
+    res.boxes = { hero: grp.hero, board: grp.board };
+    var cardBoxes = [];
+    found.cards.forEach(function(c){
+      var top = c.y - c.h * .75, B = c.blob, b = cardBoxes.filter(function(k){ return k.blob === B; })[0];
+      if (b) { var bot = b.y + b.h; b.y = Math.min(b.y, Math.max(B.y, Math.round(top))); b.h = bot - b.y; }
+      else { var y0 = Math.max(B.y, Math.round(top)); cardBoxes.push({ blob: B, x: B.x, y: y0, w: B.w, h: B.y + B.h - y0 }); }
+    });
+    var lines = readLines(px, W, H, cardBoxes, T); res.lines = lines; var tokens = [], dealer = findDealer(px, W, H, T), barY = [], callLabel = null, check = false, potLabel = null;
+    lines.forEach(function(L){
+      var word = L.glyphs.map(function(g){ return g.ch; }).join('');
+      if (near(word.replace(/[0-9]+$/, ''), ['fold', 'фолд', 'сброс', 'raise', 'рейз', 'call', 'колл', 'check', 'чек', 'bet', 'бет', 'allin'])) barY.push(L.y + L.h / 2);
+      if (L.glyphs.length === 1 && /^[DДd]$/.test(word) && L.glyphs[0].score > .68 && L.h < H * .07) {
+        if (!dealer || L.glyphs[0].score > dealer.q) dealer = { q: L.glyphs[0].score, x: L.x, y: L.y, w: L.w, h: L.h, cx: L.x + L.w / 2, cy: L.y + L.h / 2 };
+        return;
+      }
+      if (near(word, ['check', 'чек'])) { check = true; return; }
+      var t = parseToken(L);
+      if (!t) return;
+      if (near(t.prefix, ['call', 'колл', 'кол', 'коллировать', 'уравнять'])) { callLabel = t; return; }
+      if (near(t.prefix, ['raise', 'raiseto', 'bet', 'рейз', 'бет', 'ставка', 'allin', 'min', 'max', 'minraise', 'fold', 'повысить'])) return;
+      var clean = t.prefix.replace(/[$€₽]/g, '');
+      if (clean) { t.named = clean; if (near(clean, ['pot', 'totalpot', 'mainpot', 'банк', 'bank', 'total'])) t.label = true; }
+      tokens.push(t);
+    });
+    tokens = tokens.filter(function(t){ return !barY.some(function(y){ return Math.abs(y - t.cy) < t.h * 2; }); });
+    // убираем дубли из двух проходов
+    tokens = tokens.filter(function(t, i){ return !tokens.some(function(o, j){ return j !== i && Math.abs(o.cx - t.cx) < o.h && Math.abs(o.cy - t.cy) < o.h * .6 && o.q > t.q; }); });
+    var heroMid = grp.hero.length ? { x: (grp.hero[0].cx + grp.hero[1].cx) / 2, y: (grp.hero[0].cy + grp.hero[1].cy) / 2 } : null;
+    var cx, cy;
+    if (grp.boardRow) { cx = W / 2; cy = grp.boardRow.cy; }
+    else if (heroMid) { cx = W / 2; cy = Math.max(H * .3, heroMid.y - H * .3); }
+    else { cx = W / 2; cy = H * .42; }
+    res.center = { x: cx, y: cy };
+    // Банк: подпись важнее, иначе самая большая сумма рядом с центром. Подписанные суммы вне центра это имена игроков.
+    var pot = null;
+    tokens.forEach(function(t){
+      var mid = Math.abs(t.cx - cx) < W * .24 && Math.abs(t.cy - cy) < H * .17;
+      if ((t.label || (t.named && mid)) && (!pot || t.value > pot.value)) pot = t;
+    });
+    tokens = tokens.filter(function(t){ return !t.named || t === pot; });
+    res.tokens = tokens;
+    if (!pot) {
+      var center = tokens.filter(function(t){ return Math.abs(t.cx - cx) < W * .2 && Math.abs(t.cy - cy) < H * .13; });
+      center.sort(function(a, b){ return b.value - a.value; });
+      pot = center[0] || null;
+    }
+    res.pot = pot;
+    // Места: сектора вокруг центра, снаружи стек, ближе к центру ставка
+    var seatsTok = tokens.filter(function(t){ return t !== pot; });
+    seatsTok.forEach(function(t){
+      var dx = (t.cx - cx) / (W / 2), dy = (t.cy - cy) / (H / 2);
+      t.ang = Math.atan2(dy, dx); t.rad = Math.sqrt(dx * dx + dy * dy);
+    });
+    seatsTok.sort(function(a, b){ return a.ang - b.ang; });
+    var clusters = [];
+    seatsTok.forEach(function(t){
+      var c = clusters[clusters.length - 1];
+      if (c && t.ang - c.list[c.list.length - 1].ang < .42) c.list.push(t); else clusters.push({ list: [t] });
+    });
+    if (clusters.length > 1) {
+      var first = clusters[0], last = clusters[clusters.length - 1];
+      if (first.list[0].ang + 6.283 - last.list[last.list.length - 1].ang < .42) { first.list = last.list.concat(first.list); clusters.pop(); }
+    }
+    var seats = [], orphan = [];
+    clusters.forEach(function(c){
+      c.list.sort(function(a, b){ return b.rad - a.rad; });
+      var o = c.list[0];
+      if (o.rad < .4) { orphan = orphan.concat(c.list); return; }
+      var seat = { stack: o, bet: null };
+      c.list.slice(1).forEach(function(t){ if (t.rad < o.rad * .86) { if (!seat.bet || t.rad > seat.bet.rad) seat.bet = t; } });
+      seat.ang = Math.atan2((o.cy - cy) / (H / 2), (o.cx - cx) / (W / 2));
+      seat.x = o.cx; seat.y = o.cy;
+      seats.push(seat);
+    });
+    orphan.forEach(function(t){
+      var bestS = null, gap = 9;
+      seats.forEach(function(s){ var d = Math.abs(Math.atan2(Math.sin(s.ang - t.ang), Math.cos(s.ang - t.ang))); if (d < gap) { gap = d; bestS = s; } });
+      if (bestS && !bestS.bet) bestS.bet = t;
+    });
+    seats.sort(function(a, b){ return a.ang - b.ang; }); // по экрану это обход по часовой стрелке
+    res.seats = seats;
+    var heroIdx = -1, dist = 1e18;
+    if (heroMid) seats.forEach(function(s, i){ var d = Math.pow(s.x - heroMid.x, 2) + Math.pow((s.y - heroMid.y), 2); if (d < dist) { dist = d; heroIdx = i; } });
+    res.heroIdx = heroIdx;
+    res.dealer = dealer;
+    var dealerIdx = -1;
+    if (dealer && seats.length) {
+      var dd = 1e18;
+      seats.forEach(function(s, i){ var d = Math.pow(s.x - dealer.cx, 2) + Math.pow(s.y - dealer.cy, 2); if (d < dd) { dd = d; dealerIdx = i; } });
+    }
+    res.dealerIdx = dealerIdx;
+    var n = seats.length, order = null;
+    if (dealerIdx >= 0 && heroIdx >= 0 && n >= 2) {
+      res.seatsCount = n;
+      res.seatOf = function(i){ var k = (i - dealerIdx + n) % n, b = n === 2 ? 0 : n - 3; return (b + k) % n; };
+      res.heroSeat = res.seatOf(heroIdx);
+    }
+    var heroBet = heroIdx >= 0 && seats[heroIdx].bet ? seats[heroIdx].bet.value : 0, maxOther = 0, maxIdx = -1, withBet = 0;
+    seats.forEach(function(s, i){ if (i !== heroIdx && s.bet) { withBet++; if (s.bet.value > maxOther) { maxOther = s.bet.value; maxIdx = i; } } });
+    res.heroBet = heroBet; res.maxBet = maxOther; res.maxIdx = maxIdx; res.withBet = withBet;
+    if (callLabel) { res.call = callLabel.value; res.callSure = true; }
+    else if (check) { res.call = 0; res.callSure = true; }
+    else res.call = Math.max(0, maxOther - heroBet);
+    res.stack = heroIdx >= 0 ? seats[heroIdx].stack.value : 0;
+    var bets = 0; seats.forEach(function(s){ if (s.bet) bets += s.bet.value; });
+    res.bets = bets;
+    res.potValue = pot ? pot.value : 0;
+    res.bbGuess = 0;
+    if (res.board.length === 0 && dealerIdx >= 0 && n > 2) {
+      var sbSeat = seats[(dealerIdx + 1) % n], bbSeat = seats[(dealerIdx + 2) % n];
+      if (sbSeat.bet && bbSeat.bet && Math.abs(sbSeat.bet.value * 2 - bbSeat.bet.value) < 1e-6) res.bbGuess = bbSeat.bet.value;
+    }
+    return res;
+  }
+  // Мелкий снимок увеличиваем: текст читается заметно лучше
+  function fromSource(src, w, h){
+    var k = w < 1250 ? Math.min(2, 1500 / w) : (Math.max(w, h) > 2000 ? 2000 / Math.max(w, h) : 1), cw = Math.round(w * k), ch = Math.round(h * k);
+    var cv = newCanvas(cw, ch), c = cv.getContext('2d', { willReadFrequently: true });
+    c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high'; c.drawImage(src, 0, 0, cw, ch);
+    var r = analyze(c.getImageData(0, 0, cw, ch)); r.scale = k; return r;
+  }
+  return { analyze: analyze, fromSource: fromSource, templates: templates };
+})();
+/*VISION-END*/
+
+</script>
+<script>
+(function(){
+  var SUIT_GLYPH = ['♠︎','♥︎','♦︎','♣︎'];
+  var SUIT_NAME = ['пики','червы','бубны','трефы'];
+  var RANK_NAME = {T:'10',J:'валет',Q:'дама',K:'король',A:'туз'};
+  var SEATS = {2:['BTN','BB'],3:['BTN','SB','BB'],4:['CO','BTN','SB','BB'],5:['MP','CO','BTN','SB','BB'],6:['EP','MP','CO','BTN','SB','BB'],7:['EP','EP','MP','CO','BTN','SB','BB'],8:['EP','EP','MP','MP','CO','BTN','SB','BB'],9:['EP','EP','EP','MP','MP','CO','BTN','SB','BB']};
+  var POS = ['EP','MP','CO','BTN','SB','BB'];
+  var SPOTS = [['none','Нет'],['raise','Рейз'],['three','Ререйз'],['four','4-бет'],['five','5-бет']];
+  var STYLES = [['tight','Осторожные'],['normal','Обычные'],['loose','Азартные']];
+  var SPOT_TITLE = {none:'первое действие',raise:'против рейза',three:'против ререйза',four:'против 4-бета',five:'против олл-ина'};
+  var STORE = 'poker-shturman-v1';
+
+  var $ = function(id){ return document.getElementById(id); };
+  var st = { slots:[card('Ah'),card('Qh'),card('Kh'),card('7h'),card('2c'),-1,-1], target:null, table:6, seat:3, spot:'raise', vill:'CO', opp:1, style:'normal', example:true };
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch(e){}
+  if (saved) {
+    if (SEATS[saved.table]) st.table = saved.table;
+    if (saved.seat >= 0 && saved.seat < st.table) st.seat = saved.seat;
+    if (AIR[saved.style] !== undefined) st.style = saved.style;
+  }
+  function save(){ try { localStorage.setItem(STORE, JSON.stringify({table:st.table,seat:st.seat,style:st.style,stack:$('fStack').value,bb:$('fBb').value})); } catch(e){} }
+
+  $('fPot').value = '260'; $('fCall').value = '90';
+  $('fStack').value = saved && saved.stack !== undefined ? saved.stack : '2000';
+  $('fBb').value = saved && saved.bb ? saved.bb : '20';
+
+  function rankText(c){ var r = RANKS[c >> 2]; return r === 'T' ? '10' : r; }
+  function cardName(c){ var r = RANKS[c >> 2]; return (RANK_NAME[r] || r) + ', ' + SUIT_NAME[c & 3]; }
+
+  // Колода
+  var deckBtns = {};
+  (function(){
+    var f = document.createDocumentFragment();
+    for (var s = 0; s < 4; s++) for (var r = 12; r >= 0; r--) {
+      var c = r * 4 + s, b = document.createElement('button');
+      b.type = 'button'; b.className = 'c s' + s; b.id = 'card' + c;
+      b.innerHTML = '<span>' + rankText(c) + '</span><em>' + SUIT_GLYPH[s] + '</em>';
+      b.setAttribute('aria-label', cardName(c));
+      b.addEventListener('click', onCard.bind(null, c));
+      deckBtns[c] = b; f.appendChild(b);
+    }
+    $('deck').appendChild(f);
+  })();
+
+  // Места для карт
+  var slotBtns = [];
+  (function(){
+    var groups = [['Мои',0,2,'me'],['Флоп',2,3,'flop'],['Тёрн',5,1,'one'],['Ривер',6,1,'one']];
+    groups.forEach(function(g){
+      var w = document.createElement('div'); w.className = 'group ' + g[3];
+      var l = document.createElement('small'); l.textContent = g[0]; w.appendChild(l);
+      var row = document.createElement('div'); row.className = 'gcards';
+      for (var i = 0; i < g[2]; i++) {
+        var b = document.createElement('button'), idx = g[1] + i;
+        b.type = 'button'; b.className = 'slot'; b.id = 'slot' + idx;
+        b.addEventListener('click', onSlot.bind(null, idx));
+        slotBtns[idx] = b; row.appendChild(b);
+      }
+      w.appendChild(row); $('slots').appendChild(w);
+    });
+  })();
+
+  function makeSeg(id, items, onPick){
+    var host = $(id);
+    items.forEach(function(it){
+      var b = document.createElement('button'); b.type = 'button'; b.id = id + '-' + it[0]; b.textContent = it[1]; b.dataset.v = it[0];
+      b.addEventListener('click', function(){ onPick(it[0]); });
+      host.appendChild(b);
+    });
+  }
+  makeSeg('segPos', POS.map(function(p){ return [p, POS_NAME[p]]; }), function(p){
+    var list = SEATS[st.table], i = list.indexOf(p);
+    if (i >= 0) { st.seat = i; touched(); }
+  });
+  makeSeg('segSpot', SPOTS, function(v){ st.spot = v; touched(); });
+  makeSeg('segVill', POS.map(function(p){ return [p, POS_NAME[p]]; }), function(v){ st.vill = v; touched(); });
+  makeSeg('segStyle', STYLES, function(v){ st.style = v; touched(); });
+
+  function villOptions(){
+    var list = SEATS[st.table], pos = list[st.seat], i = POS.indexOf(pos), out;
+    if (st.spot === 'raise' || st.spot === 'four') out = POS.slice(0, i);
+    else if (st.spot === 'five') out = POS.slice(i + 1);
+    else out = POS.filter(function(p){ return p !== pos; });
+    return out.filter(function(p){ return list.indexOf(p) >= 0; });
+  }
+  function fixVill(){
+    var o = villOptions();
+    if (o.indexOf(st.vill) < 0) st.vill = o.length ? o[o.length - 1] : null;
+  }
+  function firstEmpty(){ for (var i = 0; i < 7; i++) if (st.slots[i] < 0) return i; return null; }
+  function onCard(c){
+    var at = st.slots.indexOf(c);
+    if (at >= 0) { st.slots[at] = -1; st.target = at; }
+    else {
+      var t = st.target !== null && st.slots[st.target] < 0 ? st.target : firstEmpty();
+      if (t === null) return;
+      st.slots[t] = c; st.target = null;
+    }
+    st.example = false; touched();
+  }
+  function onSlot(i){
+    if (st.slots[i] >= 0) st.slots[i] = -1;
+    st.target = i; st.example = false; touched();
+  }
+  function step(key, d, lo, hi){ st[key] = Math.min(hi, Math.max(lo, st[key] + d)); }
+  $('oppMinus').addEventListener('click', function(){ step('opp', -1, 1, st.table - 1); touched(); });
+  $('oppPlus').addEventListener('click', function(){ step('opp', 1, 1, st.table - 1); touched(); });
+  function setTable(d){
+    var pos = SEATS[st.table][st.seat];
+    step('table', d, 2, 9);
+    var i = SEATS[st.table].indexOf(pos);
+    st.seat = i >= 0 ? i : SEATS[st.table].length - 1;
+    st.opp = Math.min(st.opp, st.table - 1);
+    touched();
+  }
+  $('tblMinus').addEventListener('click', function(){ setTable(-1); });
+  $('tblPlus').addEventListener('click', function(){ setTable(1); });
+  ['fPot','fCall','fStack','fBb'].forEach(function(id){ $(id).addEventListener('input', function(){ locks[id] = true; touched(); }); });
+  $('btnNew').addEventListener('click', function(){
+    st.slots = [-1,-1,-1,-1,-1,-1,-1]; st.target = null; st.example = false; st.spot = 'none'; st.opp = 1; locks = {}; lastHero = '';
+    st.seat = (st.seat - 1 + st.table) % st.table;
+    $('fPot').value = ''; $('fCall').value = '';
+    touched(); window.scrollTo(0, 0);
+  });
+  $('dMx').addEventListener('toggle', drawMatrix);
+
+  function val(id){ var v = parseFloat($(id).value.replace(',', '.').replace(/\s/g, '')); return v > 0 ? v : 0; }
+  function state(){
+    var pot = val('fPot'), call = val('fCall'), fixed = false;
+    if (pot > 0 && pot < call) { pot += call; fixed = true; }
+    return { pos:SEATS[st.table][st.seat], spot:st.spot, vill:st.spot === 'none' ? null : st.vill, opp:st.opp, style:st.style, pot:pot, call:call, stack:val('fStack'), bb:val('fBb'), potFixed:fixed };
+  }
+
+  function paint(){
+    for (var c = 0; c < 52; c++) deckBtns[c].className = 'c s' + (c & 3) + (st.slots.indexOf(c) >= 0 ? ' on' : '');
+    var tgt = st.target !== null && st.slots[st.target] < 0 ? st.target : firstEmpty();
+    slotBtns.forEach(function(b, i){
+      var c = st.slots[i];
+      if (c >= 0) {
+        b.className = 'slot full s' + (c & 3);
+        b.innerHTML = '<span>' + rankText(c) + '</span><em>' + SUIT_GLYPH[c & 3] + '</em>';
+        b.setAttribute('aria-label', 'Убрать карту: ' + cardName(c));
+      } else {
+        b.className = 'slot' + (i === tgt ? ' target' : ''); b.innerHTML = '';
+        b.setAttribute('aria-label', 'Пустое место для карты');
+      }
+    });
+    var list = SEATS[st.table], pos = list[st.seat];
+    POS.forEach(function(p){ var b = $('segPos-' + p); b.disabled = list.indexOf(p) < 0; b.setAttribute('aria-pressed', p === pos); });
+    SPOTS.forEach(function(s){ $('segSpot-' + s[0]).setAttribute('aria-pressed', s[0] === st.spot); });
+    var opts = villOptions();
+    $('rowVill').hidden = st.spot === 'none' || !opts.length;
+    $('labVill').textContent = st.spot === 'raise' ? 'Кто открыл' : st.spot === 'three' ? 'Кто сделал ререйз' : st.spot === 'four' ? 'Кто сделал 4-бет' : 'Кто пошёл олл-ин';
+    POS.forEach(function(p){ var b = $('segVill-' + p); b.disabled = opts.indexOf(p) < 0; b.setAttribute('aria-pressed', p === st.vill); });
+    STYLES.forEach(function(s){ $('segStyle-' + s[0]).setAttribute('aria-pressed', s[0] === st.style); });
+    $('oppVal').textContent = st.opp; $('tblVal').textContent = st.table;
+    $('exTag').hidden = !st.example;
+    var s = state(), h = $('hint');
+    h.className = s.potFixed ? 'warn' : '';
+    h.textContent = s.potFixed ? 'Банк меньше колла, поэтому ставка соперника добавлена к банку.' : 'Банк: все фишки на столе вместе со ставкой соперника. Колл: сколько вам нужно доплатить.';
+  }
+
+  function show(action, word, size, reason, adv){
+    document.documentElement.style.setProperty('--v', 'var(--v-' + action + ')');
+    $('vWord').textContent = word; $('vSize').textContent = size || ''; $('vReason').textContent = reason || '';
+    mirrorTop(word, size, adv);
+    var src = adv && (adv.sourceText || (adv.source === 'approx' ? 'Приближённо' : '')); $('vSrc').textContent = src || '';
+    var eq = adv && adv.equity, need = adv && adv.need;
+    $('sEq').textContent = eq !== undefined && eq !== null ? Math.round(eq * 100) + '%' : '—';
+    $('sNeed').textContent = need !== undefined ? Math.round(need * 100) + '%' : '—';
+    var ev = adv && adv.ev;
+    $('sEv').textContent = ev !== undefined ? (ev >= 0 ? '+' : '−') + Math.abs(Math.round(ev)) : '—';
+    $('mFill').style.width = eq ? (eq * 100).toFixed(1) + '%' : '0';
+    var t = $('mTick'); t.hidden = need === undefined; if (need !== undefined) t.style.left = (need * 100).toFixed(1) + '%';
+    setTimeout(function(){ mirrorTop(word, size, adv); }, 220);
+  }
+
+  // ---- Зрение ----
+  var locks = {}, lastHero = '', lastSig = '', stream = null, video = null, loopTimer = 0, busy = false, topWin = null, lastFrame = null;
+  var SUIT_MARK = { s:'\u2660\uFE0E', h:'\u2665\uFE0E', d:'\u2666\uFE0E', c:'\u2663\uFE0E' };
+  function cardText(code){ return (code[0] === 'T' ? '10' : code[0]) + SUIT_MARK[code[1]]; }
+  function setField(id, v){ if (!locks[id] && v > 0) $(id).value = String(Math.round(v * 100) / 100); else if (!locks[id] && v === 0 && (id === 'fCall')) $(id).value = ''; }
+  function eyeSay(text, warn){ var e = $('eyeStatus'); e.textContent = text; e.className = warn ? 'warn' : ''; }
+  function posName(r, i){ return POS_NAME[SEATS[r.seatsCount][r.seatOf(i)]]; }
+  function describe(r){
+    var parts = [], miss = [];
+    if (r.hero.length === 2) parts.push(r.hero.map(cardText).join(' ')); else miss.push('ваши карты');
+    if (r.board.length) parts.push('стол ' + r.board.map(cardText).join(' '));
+    if (r.potValue) parts.push('банк ' + r.potValue); else miss.push('банк');
+    if (r.call) parts.push('колл ' + r.call);
+    if (r.stack) parts.push('стек ' + r.stack);
+    if (r.heroSeat !== undefined) parts.push(posName(r, r.heroIdx)); else miss.push('дилера или места');
+    return 'Вижу: ' + (parts.join(' · ') || 'пока ничего') + (miss.length ? '. Не нашёл: ' + miss.join(', ') + '.' : '.');
+  }
+  function drawEye(src, w, h, r){
+    if (!$('dEye').open) return;
+    var cv = $('eyeCv'), K = Math.min(720, w) / w, c = cv.getContext('2d');
+    cv.width = Math.round(w * K); cv.height = Math.round(h * K); c.drawImage(src, 0, 0, cv.width, cv.height);
+    var f = cv.width / r.W;
+    function box(b, color, pad){ if (!b) return; c.strokeStyle = color; c.lineWidth = 2; c.strokeRect((b.x - pad) * f, (b.y - pad) * f, ((b.w || b.h * 1.2) + pad * 2) * f, (b.h + pad * 2) * f); }
+    r.boxes.hero.concat(r.boxes.board).forEach(function(b){ box(b, '#2ee59d', 4); });
+    box(r.pot, '#ffd23f', 3);
+    r.seats.forEach(function(s){ box(s.stack, '#4fc3f7', 3); box(s.bet, '#ff9f43', 3); });
+    box(r.dealer, '#ff5fa2', 2);
+  }
+  function applyVision(r, live){
+    var heroSig = r.hero.join(), sig = [heroSig, r.board.join(), r.potValue, r.call, r.stack].join('|');
+    eyeSay(describe(r));
+    if (live && sig !== lastSig) { lastSig = sig; return; } // снимок применяется, когда повторился дважды
+    lastSig = sig;
+    if (r.hero.length !== 2) return;
+    if (heroSig !== lastHero) { lastHero = heroSig; locks = {}; st.spot = 'none'; st.vill = null; st.opp = 1; $('fPot').value = ''; $('fCall').value = ''; }
+    st.example = false; st.target = null;
+    st.slots = r.hero.concat(r.board).map(card);
+    while (st.slots.length < 7) st.slots.push(-1);
+    var bets = $('chkPot').checked ? 0 : r.bets;
+    setField('fPot', r.potValue ? r.potValue + bets : bets);
+    setField('fCall', r.call);
+    setField('fStack', r.stack);
+    if (r.bbGuess) setField('fBb', r.bbGuess);
+    if (r.heroSeat !== undefined && SEATS[r.seatsCount]) { st.table = r.seatsCount; st.seat = r.heroSeat; }
+    var bb = val('fBb');
+    if (!r.board.length && bb) {
+      if (r.maxBet <= bb) { if (r.heroBet <= bb) st.spot = 'none'; }
+      else if (r.heroBet < r.maxBet) {
+        st.spot = r.heroBet <= bb ? 'raise' : r.heroBet <= bb * 5 ? 'three' : r.heroBet <= bb * 14 ? 'four' : 'five';
+        if (r.seatOf && r.maxIdx >= 0 && SEATS[r.seatsCount]) st.vill = SEATS[r.seatsCount][r.seatOf(r.maxIdx)];
+      }
+    }
+    if (r.call > 0 && r.withBet) st.opp = Math.max(1, Math.min(r.withBet, st.table - 1));
+    touched();
+  }
+  function frameBlack(src, w, h){
+    var c = document.createElement('canvas'); c.width = 32; c.height = 18;
+    var x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(src, 0, 0, 32, 18);
+    var d = x.getImageData(0, 0, 32, 18).data, s = 0; for (var i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2];
+    return s / (d.length / 4) / 3 < 5;
+  }
+  function look(src, w, h, live){
+    if (frameBlack(src, w, h)) { eyeSay('Вместо стола чёрный экран. Эта игра блокирует захват, либо окно свёрнуто.', true); return; }
+    var r = Vision.fromSource(src, w, h);
+    drawEye(src, w, h, r); applyVision(r, live);
+  }
+  function tick(){
+    if (!stream) return;
+    if (!busy && video.videoWidth) { busy = true; try { look(video, video.videoWidth, video.videoHeight, true); } catch (e) { eyeSay('Не удалось разобрать снимок: ' + e.message, true); } busy = false; }
+    loopTimer = setTimeout(tick, 1000);
+  }
+  function stopEye(){
+    if (stream) stream.getTracks().forEach(function(t){ t.stop(); });
+    stream = null; clearTimeout(loopTimer); $('btnEye').textContent = 'Смотреть экран';
+    eyeSay('Захват экрана остановлен.');
+  }
+  $('btnEye').addEventListener('click', function(){
+    if (stream) { stopEye(); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { eyeSay('Здесь браузер не даёт смотреть на экран. На Android загрузите скриншот, а для постоянного зрения нужен APK.', true); return; }
+    navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5 }, audio: false }).then(function(s){
+      stream = s; video = document.createElement('video'); video.muted = true; video.playsInline = true; video.srcObject = s;
+      s.getVideoTracks()[0].addEventListener('ended', stopEye);
+      $('btnEye').textContent = 'Остановить'; lastHero = ''; lastSig = '';
+      eyeSay('Смотрю на окно с игрой. Первый снимок разбираю сейчас.');
+      return video.play();
+    }).then(function(){ tick(); }).catch(function(e){
+      if (stream) stopEye();
+      eyeSay('Захват не запустился. Если вы не отменяли его сами, откройте файл «Покерный штурман.html» в Chrome: страница по ссылке захват запрещает.', true);
+    });
+  });
+  function readImage(file){
+    if (!file) return;
+    createImageBitmap(file).then(function(b){ st.example = false; lastHero = ''; lastSig = ''; look(b, b.width, b.height, false); }).catch(function(){ eyeSay('Не удалось открыть этот файл как картинку.', true); });
+  }
+  $('fShot').addEventListener('change', function(){ readImage(this.files[0]); this.value = ''; });
+  document.addEventListener('paste', function(e){
+    var items = e.clipboardData ? e.clipboardData.items : [];
+    for (var i = 0; i < items.length; i++) if (items[i].type.indexOf('image') === 0) { readImage(items[i].getAsFile()); e.preventDefault(); return; }
+  });
+  if ('documentPictureInPicture' in window) $('btnTop').hidden = false;
+  $('btnTop').addEventListener('click', function(){
+    documentPictureInPicture.requestWindow({ width: 320, height: 120 }).then(function(w){
+      topWin = w;
+      var b = w.document.body; b.style.cssText = 'margin:0;font:600 15px system-ui,sans-serif;color:#fff;display:grid;align-content:center;gap:2px;padding:8px 12px;min-height:100vh;box-sizing:border-box';
+      b.innerHTML = '<div id="w" style="font-size:30px;font-weight:800;line-height:1.05"></div><div id="n" style="font-variant-numeric:tabular-nums"></div>';
+      w.addEventListener('pagehide', function(){ topWin = null; });
+      mirrorTop($('vWord').textContent, $('vSize').textContent, null);
+    }).catch(function(){ eyeSay('Браузер не открыл окно поверх игры. Откройте файл в Chrome на ПК.', true); });
+  });
+  function mirrorTop(word, size, adv){
+    if (!topWin) return;
+    var d = topWin.document, st0 = getComputedStyle($('verdict')).backgroundColor;
+    d.body.style.background = st0;
+    d.getElementById('w').textContent = word + (size ? ' ' + size : '');
+    d.getElementById('n').textContent = 'Шанс ' + $('sEq').textContent + ' · нужно ' + $('sNeed').textContent;
+  }
+
+  var token = 0, timer = null;
+  function touched(){ fixVill(); paint(); save(); drawMatrix(); clearTimeout(timer); timer = setTimeout(analyze, 30); }
+  function analyze(){
+    var my = ++token, hole = st.slots.slice(0, 2).filter(function(c){ return c >= 0; }), board = st.slots.slice(2).filter(function(c){ return c >= 0; });
+    if (hole.length < 2) { $('handLine').textContent = ''; show('wait', hole.length ? 'Ещё карта' : 'Ваши карты', '', hole.length ? 'Отметьте вторую карту.' : 'Отметьте две свои карты в колоде.'); return; }
+    if (board.length === 1 || board.length === 2) { $('handLine').textContent = ''; show('wait', 'Флоп', '', 'На флопе три карты. Отметьте остальные.'); return; }
+    var s = state();
+    var h = board.length ? describeHand(hole, board) : null;
+    $('handLine').textContent = h ? h.name + (h.draw ? ' · ' + h.draw + ', аутов: ' + h.outs : '') : handCode(hole[0], hole[1]) + ' · ' + POS_NAME[s.pos];
+    var key = [hole, board, s.pos, s.spot, s.opp, s.style, s.pot, s.call, s.stack, s.bb].join('|');
+    var sim = makeSim(hole, board, opponentSources(s, hole, board), hashStr(key)), total = 14000;
+    (function slice(){
+      if (my !== token) return;
+      var t0 = performance.now();
+      while (sim.played() < total && performance.now() - t0 < 12) sim.run(300);
+      if (sim.played() < total) { setTimeout(slice, 0); return; }
+      var a = finishAdvice(s, hole, board, sim.value());
+      show(a.action, a.word, a.size, a.reason, a);
+    })();
+  }
+
+  function drawMatrix(){
+    titleMatrix();
+    if (!$('dMx').open) return;
+    var s = state(), get = cellFn(s), hole = st.slots.slice(0, 2), mine = hole[0] >= 0 && hole[1] >= 0 ? handCode(hole[0], hole[1]) : '';
+    $('mx').innerHTML = allCodes().map(function(h){
+      var c = get(h), cls = '', style = '';
+      if (!c) cls = 'out';
+      else if (c.r + c.a + c.k > 0.001) {
+        var r = c.r * 100, a = r + c.a * 100, k = a + c.k * 100;
+        cls = 'on';
+        style = ' style="background:linear-gradient(90deg,var(--m-raise) ' + r + '%,var(--m-allin) ' + r + '% ' + a + '%,var(--m-call) ' + a + '% ' + k + '%,var(--m-none) ' + k + '%)"';
+      }
+      if (h === mine) cls += ' me';
+      return '<div class="' + cls + '"' + style + '>' + h + '</div>';
+    }).join('');
+  }
+  function cellFn(s){
+    var short = isShort(s), H = POS_MAP[s.pos], idx = codeIdx();
+    if (short) {
+      var d = nashDepth(s), V = s.vill ? POS_MAP[s.vill] : null;
+      if (s.spot === 'none' && H !== 'BB') return function(h){ return { r:0, k:0, a:+NASH.jam[d][H][idx[h]] / 9 }; };
+      if (s.spot === 'raise' && V && SEAT_ORDER.indexOf(V) < SEAT_ORDER.indexOf(H) && s.call >= s.stack * 0.6) return function(h){ return { r:0, a:0, k:+NASH.call[d][V + '|' + H][idx[h]] / 9 }; };
+    } else if (!(s.pos === 'BB' && s.spot === 'none') && !(s.spot === 'raise' && s.bb && s.call / s.bb >= 8)) {
+      var loc = locate(s);
+      if (loc) return function(h){
+        var f = nodeFreqs(loc.node, h); if (!f) return null;
+        var c = { r:0, k:0, a:0 };
+        loc.node.actions.forEach(function(a, i){ var k = kindOf(a); if (k === 'raise') c.r += f[i]; else if (k === 'allin') c.a += f[i]; else if (k === 'call') c.k += f[i]; });
+        return c;
+      };
+    }
+    var sets = approxSets(s);
+    return function(h){ return { r: sets.raise && sets.raise[h] ? 1 : 0, k: sets.call && sets.call[h] ? 1 : 0, a: 0 }; };
+  }
+  function approxSets(s){
+    var tier = preTier(s), short = isShort(s), p = s.pos;
+    if (tier === 'none') return { raise: R(short ? CHART.push[p] : CHART.open[p]) };
+    if (short) return { raise: R(tier === 'raise' ? CHART.pushOverRaise : CHART.pushOverThreeBet) };
+    if (tier === 'jam') return { call: R('QQ+,AKs,AKo') };
+    if (tier === 'three') return { raise: R(CHART.fourBet), call: R(CHART.callThreeBet) };
+    return { raise: R(CHART.threeBet[p]), call: R(CHART.callRaise[p]) };
+  }
+  function titleMatrix(){
+    var s = state(), short = isShort(s);
+    var who = s.vill && s.spot !== 'none' ? ', ' + POS_NAME[s.vill] : '';
+    $('mxTitle').textContent = 'Таблица рук: ' + POS_NAME[s.pos] + ', ' + SPOT_TITLE[s.spot] + who + (short ? ', короткий стек' : '');
+    $('lgR').textContent = 'Рейз';
+    $('lgN').textContent = s.pos === 'BB' && s.spot === 'none' ? 'Чек' : 'Фолд';
+  }
+
+  touched();
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(function(){});
+</script>
+</body>
+</html>
