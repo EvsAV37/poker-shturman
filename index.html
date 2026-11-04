@@ -187,7 +187,7 @@ footer a{color:var(--accent)}
         <canvas id="camCv" width="640" height="360"></canvas>
       </div>
       <div class="eyebar">
-        <button type="button" class="eyebtn" id="btnRot">Повернуть кадр</button>
+        <button type="button" class="eyebtn" id="btnShape">Окно: авто</button>
         <button type="button" class="eyebtn" id="btnCorners">Отметить углы</button>
         <button type="button" class="eyebtn" id="btnAuto">Искать экран сам</button>
       </div>
@@ -270,7 +270,7 @@ footer a{color:var(--accent)}
     <p><b>Повышения.</b> Рейз: соперник открыл, вы ещё не вкладывались. Ререйз: вы открыли, вас подняли. 4-бет: вы сделали ререйз, а открывший поднял снова или пошёл олл-ин. 5-бет: вы сделали 4-бет, а соперник пошёл олл-ин.</p>
     <p><b>Приближённо.</b> Лимпы, колл перед вами, чужой ререйз и необычные ставки в солверное дерево не входят. Тогда совет идёт из упрощённых таблиц, и приложение помечает его словом «Приближённо».</p>
     <p><b>Зрение.</b> Захват экрана работает в файле «Покерный штурман.html», открытом в Chrome на ПК. Держите его в отдельном окне: в фоновой вкладке браузер может замедлить снимки. На Android и на странице по ссылке можно разобрать загруженный или вставленный скриншот. Распознавание работает на устройстве, снимки никуда не отправляются.</p>
-    <p><b>Камера.</b> Кнопка «Смотреть камерой» снимает экран с другого устройства: например, iPhone на подставке смотрит на монитор или на Android-телефон с игрой. Видео показывается так, как его снимает камера. Если картинка лежит на боку, нажмите «Повернуть кадр». Если стол обрезан, нажмите «Отметить углы» и коснитесь четырёх углов экрана на картинке. Камера работает на сайте и в файле на ПК, а на странице по ссылке Claude запрещена. Кадры обрабатываются на устройстве и никуда не отправляются.</p>
+    <p><b>Камера.</b> Кнопка «Смотреть камерой» снимает экран с другого устройства: например, iPhone на подставке смотрит на монитор или на Android-телефон с игрой. Изображение всегда остаётся ровным. Кнопка «Окно» меняет только форму окна: вертикальное или горизонтальное. Штурман читает только то, что видно в окне. Если стол обрезан, нажмите «Отметить углы» и коснитесь четырёх углов экрана на картинке. Камера работает на сайте и в файле на ПК, а на странице по ссылке Claude запрещена. Кадры обрабатываются на устройстве и никуда не отправляются.</p>
     <p><b>Новая раздача.</b> Очищает карты, банк и колл и сдвигает позицию на одно место, как при движении баттона. Стек, ББ и число мест сохраняются.</p>
     <p><b>Ограничения.</b> Таблицы приближённые: игра после флопа в них оценена, а не решена полностью. Они недооценивают одномастные связки вроде T9s и 76s, особенно с ранних позиций. Для 7–9 мест используются таблицы на 6 мест. Приложение не видит манеру конкретного соперника и не считает побочные банки. Оно рассчитано на игру на фишки и тренажёры: покер-румы запрещают подсказки в игре на деньги.</p>
   </details>
@@ -1839,26 +1839,31 @@ var CamVision = (function(){
     if ((v = modeOf('stack')) !== undefined) m.stack = v;
     return m;
   }
-  // Предпросмотр рисуется тем же способом, что и кадры для распознавания: что видно, то и читается
-  var camLayoutKey = '', camLoop = 0;
+  // Окно камеры: меняется только форма. Изображение не поворачивается, лишнее обрезается по краям.
+  var camShape = 'auto', camLayoutKey = '', camLoop = 0, SHAPE_NAME = { auto: 'авто', tall: 'вертикальное', wide: 'горизонтальное' };
+  try { var keep = localStorage.getItem(STORE + '-shape'); if (SHAPE_NAME[keep]) camShape = keep; } catch (e) {}
+  function cropRect(){
+    var vw = camVideo.videoWidth, vh = camVideo.videoHeight, a = camShape === 'tall' ? 9 / 16 : camShape === 'wide' ? 16 / 9 : vw / vh, sw = vw, sh = vh;
+    if (vw / vh > a) sw = Math.round(vh * a); else sh = Math.round(vw / a);
+    return { sx: Math.round((vw - sw) / 2), sy: Math.round((vh - sh) / 2), sw: sw, sh: sh };
+  }
   function layoutCam(){
     var vw = camVideo.videoWidth, vh = camVideo.videoHeight; if (!vw) return;
-    var odd = camRot % 180 !== 0, a = odd ? vh / vw : vw / vh, box = $('camView');
-    var limit = Math.round(window.innerHeight * .34), W = Math.min(box.parentNode.clientWidth, Math.round(limit * a)), H = Math.round(W / a);
+    var c = cropRect(), a = c.sw / c.sh, box = $('camView');
+    var limit = Math.round(window.innerHeight * (a < 1 ? .46 : .34)), W = Math.min(box.parentNode.clientWidth, Math.round(limit * a)), H = Math.round(W / a);
     box.style.width = W + 'px'; box.style.height = H + 'px';
     var d = Math.min(2, window.devicePixelRatio || 1); camCv.width = W * d; camCv.height = H * d;
-    frameSize();
-    $('camInfo').textContent = 'Кадр ' + vw + '×' + vh + ', поворот ' + camRot + '°, экран ' + window.innerWidth + '×' + window.innerHeight + ', версия 6';
-    camLayoutKey = vw + 'x' + vh + 'r' + camRot + 'w' + window.innerWidth;
+    var z = frameSize();
+    $('btnShape').textContent = 'Окно: ' + SHAPE_NAME[camShape];
+    $('camInfo').textContent = 'Камера ' + vw + '×' + vh + ', в окне ' + c.sw + '×' + c.sh + ', версия 7';
+    camLayoutKey = vw + 'x' + vh + camShape + window.innerWidth;
   }
   function drawOverlay(){
     if (!camStream || !camVideo.videoWidth) return;
     var vw = camVideo.videoWidth, vh = camVideo.videoHeight;
-    if (camLayoutKey !== vw + 'x' + vh + 'r' + camRot + 'w' + window.innerWidth) layoutCam();
-    var x = camCv.getContext('2d'), W = camCv.width, H = camCv.height, odd = camRot % 180 !== 0, dw = odd ? H : W, dh = odd ? W : H;
-    x.save(); x.translate(W / 2, H / 2); x.rotate(camRot * Math.PI / 180);
-    try { x.drawImage(camVideo, -dw / 2, -dh / 2, dw, dh); } catch (e) {}
-    x.restore();
+    if (camLayoutKey !== vw + 'x' + vh + camShape + window.innerWidth) layoutCam();
+    var x = camCv.getContext('2d'), W = camCv.width, H = camCv.height, c = cropRect();
+    try { x.drawImage(camVideo, c.sx, c.sy, c.sw, c.sh, 0, 0, W, H); } catch (e) {}
     if (!camFrameW) return;
     var k = W / camFrameW;
     if (camQuad) { x.strokeStyle = '#2ee59d'; x.lineWidth = 3; x.beginPath(); camQuad.forEach(function(p, i){ x[i ? 'lineTo' : 'moveTo'](p.x * k, p.y * k); }); x.closePath(); x.stroke(); }
@@ -1866,27 +1871,27 @@ var CamVision = (function(){
   }
   function previewLoop(){ if (!camStream) return; drawOverlay(); camLoop = setTimeout(previewLoop, 90); }
   function frameSize(){
-    var vw = camVideo.videoWidth, vh = camVideo.videoHeight, odd = camRot % 180 !== 0, k = Math.min(1, 1920 / Math.max(vw, vh));
-    var dw = Math.round(vw * k), dh = Math.round(vh * k), W = odd ? dh : dw, H = odd ? dw : dh;
-    camFrameW = W; camFrameH = H;
-    return { dw: dw, dh: dh, W: W, H: H };
+    var c = cropRect(), k = Math.min(1, 1920 / Math.max(c.sw, c.sh)), dw = Math.round(c.sw * k), dh = Math.round(c.sh * k);
+    camFrameW = dw; camFrameH = dh;
+    return { dw: dw, dh: dh, W: dw, H: dh, c: c };
   }
   // Кадры идут в фоновый поток как картинки: основной поток их не читает и не подвисает
   function grabBitmaps(n, done){
-    var list = [];
+    var list = [], c = cropRect();
     (function next(){
-      createImageBitmap(camVideo).then(function(b){
+      var p;
+      try { p = createImageBitmap(camVideo, c.sx, c.sy, c.sw, c.sh); } catch (e) { done(null); return; }
+      p.then(function(b){
         list.push(b);
         if (list.length >= n) done(list); else setTimeout(next, 90);
       }).catch(function(){ list.forEach(function(b){ if (b.close) b.close(); }); done(null); });
     })();
   }
   function grabFrames(n, done){
-    var z = frameSize(), c = document.createElement('canvas'); c.width = z.W; c.height = z.H;
-    var x = c.getContext('2d', { willReadFrequently: true }), frames = [];
-    x.translate(z.W / 2, z.H / 2); x.rotate(camRot * Math.PI / 180);
+    var z = frameSize(), c = z.c, cv = document.createElement('canvas'); cv.width = z.W; cv.height = z.H;
+    var x = cv.getContext('2d', { willReadFrequently: true }), frames = [];
     (function next(){
-      x.drawImage(camVideo, -z.dw / 2, -z.dh / 2, z.dw, z.dh);
+      x.drawImage(camVideo, c.sx, c.sy, c.sw, c.sh, 0, 0, z.W, z.H);
       var f = x.getImageData(0, 0, z.W, z.H);
       frames.push({ data: f.data.buffer, width: z.W, height: z.H });
       if (frames.length >= n) done(frames); else setTimeout(next, 90);
@@ -1917,9 +1922,9 @@ var CamVision = (function(){
         if (!camStream) { (list || []).forEach(function(b){ b.close(); }); return; }
         if (!list) { viaFrames(); return; }
         // размеры берём у самого кадра: в Safari они могут отличаться от videoWidth
-        var bw = list[0].width, bh = list[0].height, sc = Math.min(1, 1920 / Math.max(bw, bh)), dw = Math.round(bw * sc), dh = Math.round(bh * sc), rotOdd = camRot % 180 !== 0;
-        camFrameW = rotOdd ? dh : dw; camFrameH = rotOdd ? dw : dh;
-        m.bitmaps = list; m.W = camFrameW; m.H = camFrameH; m.dw = dw; m.dh = dh; m.rot = camRot;
+        var bw = list[0].width, bh = list[0].height, sc = Math.min(1, 1920 / Math.max(bw, bh)), dw = Math.round(bw * sc), dh = Math.round(bh * sc);
+        camFrameW = dw; camFrameH = dh;
+        m.bitmaps = list; m.W = dw; m.H = dh; m.dw = dw; m.dh = dh; m.rot = 0;
         sendCam(m, list);
       });
     } else viaFrames();
@@ -1970,9 +1975,12 @@ var CamVision = (function(){
   camVideo.addEventListener('loadedmetadata', layoutCam);
   camVideo.addEventListener('resize', layoutCam);
   window.addEventListener('resize', function(){ if (camStream) layoutCam(); });
-  $('btnRot').addEventListener('click', function(){
-    camRot = (camRot + 90) % 360; camQuad = null; camManual = false; camView = null; marking = null; camCv.className = ''; votes = []; layoutCam();
-    eyeSay('Поворот ' + camRot + '°. Если картинка всё ещё лежит на боку, нажмите ещё раз.');
+  $('btnShape').addEventListener('click', function(){
+    var tall = camVideo.videoWidth < camVideo.videoHeight, now = camShape === 'auto' ? (tall ? 'tall' : 'wide') : camShape;
+    camShape = now === 'tall' ? 'wide' : 'tall';
+    try { localStorage.setItem(STORE + '-shape', camShape); } catch (e) {}
+    camQuad = null; camManual = false; camView = null; marking = null; camCv.className = ''; votes = []; layoutCam();
+    eyeSay('Окно ' + SHAPE_NAME[camShape] + '. Изображение осталось ровным, по краям оно обрезано под форму окна.');
   });
   $('btnCorners').addEventListener('click', function(){ marking = []; camCv.className = 'marking'; drawOverlay(); eyeSay('Коснитесь на картинке четырёх углов экрана с игрой.'); });
   $('btnAuto').addEventListener('click', function(){ marking = null; camCv.className = ''; camManual = false; camQuad = null; camView = null; votes = []; drawOverlay(); eyeSay('Ищу экран сам.'); });
