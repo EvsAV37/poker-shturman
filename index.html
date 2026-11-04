@@ -269,7 +269,7 @@ footer a{color:var(--accent)}
     <p><b>Повышения.</b> Рейз: соперник открыл, вы ещё не вкладывались. Ререйз: вы открыли, вас подняли. 4-бет: вы сделали ререйз, а открывший поднял снова или пошёл олл-ин. 5-бет: вы сделали 4-бет, а соперник пошёл олл-ин.</p>
     <p><b>Приближённо.</b> Лимпы, колл перед вами, чужой ререйз и необычные ставки в солверное дерево не входят. Тогда совет идёт из упрощённых таблиц, и приложение помечает его словом «Приближённо».</p>
     <p><b>Зрение.</b> Захват экрана работает в файле «Покерный штурман.html», открытом в Chrome на ПК. Держите его в отдельном окне: в фоновой вкладке браузер может замедлить снимки. На Android и на странице по ссылке можно разобрать загруженный или вставленный скриншот. Распознавание работает на устройстве, снимки никуда не отправляются.</p>
-    <p><b>Камера.</b> Кнопка «Смотреть камерой» снимает экран с другого устройства: например, iPhone на подставке смотрит на монитор или на Android-телефон с игрой. Штурман сам ищет экран и поворачивает кадр, когда видит на столе карты. Если картинка лежит на боку, нажмите «Повернуть кадр». Если стол обрезан, нажмите «Отметить углы» и коснитесь четырёх углов экрана на картинке. Камера работает на сайте и в файле на ПК, а на странице по ссылке Claude запрещена. Кадры обрабатываются на устройстве и никуда не отправляются.</p>
+    <p><b>Камера.</b> Кнопка «Смотреть камерой» снимает экран с другого устройства: например, iPhone на подставке смотрит на монитор или на Android-телефон с игрой. Видео показывается так, как его снимает камера. Если картинка лежит на боку, нажмите «Повернуть кадр». Если стол обрезан, нажмите «Отметить углы» и коснитесь четырёх углов экрана на картинке. Камера работает на сайте и в файле на ПК, а на странице по ссылке Claude запрещена. Кадры обрабатываются на устройстве и никуда не отправляются.</p>
     <p><b>Новая раздача.</b> Очищает карты, банк и колл и сдвигает позицию на одно место, как при движении баттона. Стек, ББ и число мест сохраняются.</p>
     <p><b>Ограничения.</b> Таблицы приближённые: игра после флопа в них оценена, а не решена полностью. Они недооценивают одномастные связки вроде T9s и 76s, особенно с ранних позиций. Для 7–9 мест используются таблицы на 6 мест. Приложение не видит манеру конкретного соперника и не считает побочные банки. Оно рассчитано на игру на фишки и тренажёры: покер-румы запрещают подсказки в игре на деньги.</p>
   </details>
@@ -1496,7 +1496,7 @@ var CamVision = (function(){
     // Поворот проверяем редко. Сравниваем все стороны: цифры читаются только на правильной, а 6 вверх ногами похожа на 9.
     if (tryRot && (best.r.hero.length < 2 || best.r.tokens.length < 3)) {
       var straight = best;
-      [90, 270, 180].forEach(function(d){ var x = once(true, d); if (x.r.tokens.length >= 3 && x.score > best.score) best = x; });
+      [90, 270, 180].forEach(function(d){ var x = once(true, d); if (x.r.hero.length === 2 && x.r.tokens.length >= 3 && x.r.tokens.length <= 24 && x.score > best.score) best = x; });
       if (best === straight && straight.r.tokens.length < 3) straight.r.hero = [];
     }
     return best;
@@ -1810,8 +1810,7 @@ var CamVision = (function(){
   var camStream = null, camTimer = 0, camQuad = null, camManual = false, camView = null, camMiss = 0, marking = null, votes = [], wake = null;
   var camRot = 0, camFrameW = 0, camFrameH = 0, camTicks = 0, camId = 0, camWorker = null, camWait = 0, camStill = 0;
   var camVideo = $('camVideo'), camCv = $('camCv');
-  try { camRot = +(JSON.parse(localStorage.getItem(STORE + '-cam') || '{}').rot) || 0; } catch (e) {}
-  function saveRot(){ try { localStorage.setItem(STORE + '-cam', JSON.stringify({ rot: camRot })); } catch (e) {} }
+  try { localStorage.removeItem(STORE + '-cam'); } catch (e) {} // старый сохранённый поворот больше не используется
   function makeWorker(){
     try {
       var code = $('visionCode').textContent + '\nself.onmessage=function(e){var o=CamVision.process(e.data);self.postMessage(o.msg,o.transfer);};';
@@ -1919,21 +1918,16 @@ var CamVision = (function(){
     var pause = camWorker ? 250 : 1500;
     if (o.moving) { camStill = 0; eyeSay('Камера двигается. Держите её неподвижно.'); camTimer = setTimeout(camTick, pause); return; }
     var r = o.r; r.seatOf = function(i){ return r.seatMap[i]; };
-    if (!camManual) camQuad = o.quad;
-    var sure = r.hero.length === 2 && (r.tokenCount >= 3 || r.board.length >= 3);
-    if (!sure) r.hero = [];
-    if (sure) {
-      camMiss = 0; camView = o.view;
-      if (camView.rot) { // стол нашёлся в другом повороте: поворачиваем и видео
-        camRot = (camRot + camView.rot) % 360; saveRot();
-        camView = null; camQuad = null; votes = []; layoutCam();
-        camTimer = setTimeout(camTick, pause); return;
-      }
-    } else if (++camMiss >= 6) { camView = null; camMiss = 0; }
+    // Клавиатура, таблицы и документы не должны считаться столом
+    var sure = r.hero.length === 2 && ((r.tokenCount >= 3 && r.tokenCount <= 24) || r.board.length >= 3);
+    if (!sure) { r.hero = []; r.board = []; }
+    if (!camManual) camQuad = sure ? o.quad : null;
+    if (sure) { camMiss = 0; camView = o.view; }  // поворот для распознавания, видео остаётся как есть
+    else if (++camMiss >= 6) { camView = null; camMiss = 0; }
     drawOverlay();
     if (o.bitmap) drawEye(o.bitmap, o.w, o.h, r);
     var m = voted(r);
-    if (m) applyVision(m, false); else eyeSay(describe(r));
+    if (m) applyVision(m, false); else eyeSay(sure ? describe(r) : 'Стола пока не вижу. Наведите камеру на экран с игрой.');
     camTimer = setTimeout(camTick, pause);
   }
   function stopCam(){
@@ -1949,7 +1943,8 @@ var CamVision = (function(){
     if (stream) stopEye();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { eyeSay('Камера здесь недоступна. Откройте сайт по адресу с https:// в Safari или Chrome.', true); return; }
     navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } }).then(function(s){
-      camStream = s; camVideo.srcObject = s; votes = []; camView = null; camQuad = null; camManual = false; camMiss = 0; camTicks = 0; lastHero = ''; lastSig = '';
+      camStream = s; camVideo.srcObject = s; votes = []; camView = null; camQuad = null; camManual = false; camMiss = 0; camTicks = 0; camRot = 0; lastHero = ''; lastSig = '';
+      if (st.example) { st.example = false; st.slots = [-1,-1,-1,-1,-1,-1,-1]; st.spot = 'none'; $('fPot').value = ''; $('fCall').value = ''; }
       $('camBox').hidden = false; $('btnCam').textContent = 'Остановить камеру';
       eyeSay('Камера включена. Ищу стол.');
       if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function(w){ wake = w; }).catch(function(){});
@@ -1963,7 +1958,7 @@ var CamVision = (function(){
   camVideo.addEventListener('resize', layoutCam);
   window.addEventListener('resize', function(){ if (camStream) layoutCam(); });
   $('btnRot').addEventListener('click', function(){
-    camRot = (camRot + 90) % 360; saveRot(); camQuad = null; camManual = false; camView = null; marking = null; camCv.className = ''; votes = []; layoutCam();
+    camRot = (camRot + 90) % 360; camQuad = null; camManual = false; camView = null; marking = null; camCv.className = ''; votes = []; layoutCam();
     eyeSay('Кадр повёрнут. Если он снова лежит на боку, нажмите ещё раз.');
   });
   $('btnCorners').addEventListener('click', function(){ marking = []; camCv.className = 'marking'; drawOverlay(); eyeSay('Коснитесь на картинке четырёх углов экрана с игрой.'); });
